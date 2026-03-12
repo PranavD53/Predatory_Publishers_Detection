@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+
+{% block content %}
+  <section class="auth-section glass">
+    <div class="auth-panel">
+      <h2>Create an account</h2>
+      <p class="auth-subtitle">Registered users get a personal history of checks. Guests stay anonymous.</p>
+
+      {% if error %}
+        <p class="auth-error">{{ error }}</p>
+      {% endif %}
+
+      <form method="post" class="auth-form" id="signupForm">
+        <label class="field-label" for="username">Username</label>
+        <input id="username" name="username" type="text" required autocomplete="username" />
+
+        <label class="field-label" for="password">Password</label>
+        <input id="password" name="password" type="password" required autocomplete="new-password" />
+
+        <button type="submit" class="btn-primary auth-btn">Sign up</button>
+      </form>
+    </div>
+  </section>
+{% endblock %}
+

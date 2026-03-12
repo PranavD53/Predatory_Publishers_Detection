@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+
+{% block content %}
+  <section class="auth-section glass">
+    <div class="auth-panel">
+      <h2>Welcome back</h2>
+      <p class="auth-subtitle">Sign in as a registered user or one of the privileged admins.</p>
+
+      {% if error %}
+        <p class="auth-error">{{ error }}</p>
+      {% endif %}
+
+      <form method="post" class="auth-form" id="loginForm">
+        <label class="field-label" for="username">Username</label>
+        <input id="username" name="username" type="text" required autocomplete="username" />
+
+        <label class="field-label" for="password">Password</label>
+        <input id="password" name="password" type="password" required autocomplete="current-password" />
+
+        <button type="submit" class="btn-primary auth-btn">Log in</button>
+      </form>
+
+      {% if show_guest %}
+        <p class="auth-alt">
+          or
+          <a href="{{ url_for('guest_mode') }}">continue as guest</a>
+        </p>
+      {% endif %}
+    </div>
+  </section>
+{% endblock %}
+

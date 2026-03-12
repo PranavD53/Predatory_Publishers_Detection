@@ -1,0 +1,12 @@
+# models and checkpoints
+models/
+*.pt
+*.bin
+*.safetensors
+
+# datasets
+Predatory Journals Dataset.csv
+
+# Python cache
+__pycache__/
+*.pyc

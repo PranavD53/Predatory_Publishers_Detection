@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+
+{% block content %}
+  <section class="admin-section glass">
+    <div class="admin-header">
+      <div>
+        <h2>Admin panel</h2>
+        <p>Manage access: authorize admins and users. Content for individual users remains private.</p>
+      </div>
+    </div>
+
+    {% if users %}
+      <div class="table-wrapper">
+        <table class="lux-table">
+          <thead>
+            <tr>
+              <th>User</th>
+              <th>Role</th>
+              <th>Created at (UTC)</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for user in users %}
+              <tr>
+                <td>{{ user.username }}</td>
+                <td>
+                  <span class="pill pill--small {% if user.role == 'admin' %}pill--danger{% else %}pill--success{% endif %}">
+                    {{ user.role|capitalize }}
+                  </span>
+                </td>
+                <td>{{ user.created_at }}</td>
+                <td>
+                  <form method="post" class="inline-form">
+                    <input type="hidden" name="user_id" value="{{ user.id }}" />
+                    {% if user.role == 'admin' %}
+                      <button name="role" value="user" class="btn-ghost btn-ghost--small">Revoke admin</button>
+                    {% else %}
+                      <button name="role" value="admin" class="btn-primary btn-primary--small">Make admin</button>
+                    {% endif %}
+                  </form>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <p class="muted">No users found.</p>
+    {% endif %}
+  </section>
+{% endblock %}
+

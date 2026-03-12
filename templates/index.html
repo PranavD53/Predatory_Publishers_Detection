@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+
+{% block content %}
+  <section class="hero glass">
+    <div class="hero-main">
+      <h2>Evaluate any journal in seconds.</h2>
+      <p>
+        Paste a journal URL and our model will estimate predatory risk, giving you a clear label and confidence score.
+      </p>
+      <form id="analyzeForm" class="hero-form">
+        <label for="journalUrl" class="field-label">Journal URL</label>
+        <div class="field-row">
+          <input
+            id="journalUrl"
+            name="journalUrl"
+            type="url"
+            placeholder="https://example-journal.com"
+            required
+          />
+          <button type="submit" class="btn-primary">Analyze</button>
+        </div>
+        <p class="hint">We securely fetch only publicly available information from the URL.</p>
+      </form>
+    </div>
+    <div class="hero-side">
+      <div class="metric-card glass subtle-border">
+        <div class="metric-label">Model</div>
+        <div class="metric-value">BERT</div>
+        <p class="metric-note">Ready for upgrade with even richer datasets.</p>
+      </div>
+      {% if recent_predictions %}
+        <div class="recent-card glass subtle-border">
+          <div class="recent-header">
+            <h3>Recent checks</h3>
+          </div>
+          <ul class="recent-list">
+            {% for row in recent_predictions %}
+              <li>
+                <div class="recent-url" title="{{ row.url }}">{{ row.url }}</div>
+                <div class="recent-meta">
+                  <span class="pill pill--small {% if row.label == 'Predatory' %}pill--danger{% else %}pill--success{% endif %}">
+                    {{ row.label }}
+                  </span>
+                  <span class="recent-score">
+                    Risk: {{ '%.0f'|format(row.risk_score * 100) }}% ·
+                    Conf: {{ '%.0f'|format(row.confidence * 100) }}%
+                  </span>
+                </div>
+              </li>
+            {% endfor %}
+          </ul>
+        </div>
+      {% endif %}
+    </div>
+  </section>
+
+  <section id="resultSection" class="result-section hidden glass">
+    <div class="result-header">
+      <div>
+        <h3>Analysis result</h3>
+        <p id="resultUrl" class="result-url"></p>
+      </div>
+      <span id="resultLabel" class="pill pill--large"></span>
+    </div>
+    <div class="result-body">
+      <div class="result-gauge">
+        <div class="gauge-ring">
+          <div id="gaugeFill" class="gauge-fill"></div>
+        </div>
+        <div class="gauge-center">
+          <span id="riskScoreValue" class="gauge-value">0%</span>
+          <span class="gauge-label">Predatory risk</span>
+        </div>
+      </div>
+      <div class="result-meta">
+        <p id="resultTitle" class="result-title"></p>
+        <p id="resultDescription" class="result-description"></p>
+        <p id="resultConfidence" class="result-confidence"></p>
+      </div>
+    </div>
+  </section>
+{% endblock %}
+

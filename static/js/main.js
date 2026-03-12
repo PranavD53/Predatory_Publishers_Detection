@@ -1,0 +1,124 @@
+const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+const rootHtml = document.documentElement;
+const storedTheme = localStorage.getItem("ppd-theme");
+const themeToggle = document.getElementById("themeToggle");
+
+function applyTheme(theme) {
+  const next = theme === "light" ? "light" : "dark";
+  rootHtml.setAttribute("data-theme", next);
+  localStorage.setItem("ppd-theme", next);
+  if (themeToggle) {
+    const isDark = next === "dark";
+    themeToggle.setAttribute("aria-pressed", isDark ? "true" : "false");
+    themeToggle.classList.toggle("theme-toggle--dark", isDark);
+    themeToggle.classList.toggle("theme-toggle--light", !isDark);
+  }
+}
+
+if (storedTheme === "light" || storedTheme === "dark") {
+  applyTheme(storedTheme);
+} else {
+  applyTheme(prefersDark ? "dark" : "light");
+}
+
+themeToggle?.addEventListener("click", () => {
+  const current = rootHtml.getAttribute("data-theme") === "dark" ? "dark" : "light";
+  const next = current === "dark" ? "light" : "dark";
+  applyTheme(next);
+});
+
+const form = document.getElementById("analyzeForm");
+const resultSection = document.getElementById("resultSection");
+const resultUrlEl = document.getElementById("resultUrl");
+const resultLabelEl = document.getElementById("resultLabel");
+const riskScoreValueEl = document.getElementById("riskScoreValue");
+const resultTitleEl = document.getElementById("resultTitle");
+const resultDescriptionEl = document.getElementById("resultDescription");
+const resultConfidenceEl = document.getElementById("resultConfidence");
+const gaugeFillEl = document.getElementById("gaugeFill");
+
+async function handleAnalyze(event) {
+  event.preventDefault();
+  const input = document.getElementById("journalUrl");
+  const url = input.value.trim();
+  if (!url) return;
+
+  form.classList.add("is-loading");
+
+  try {
+    const response = await fetch("/analyze", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url }),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.error || "Failed to analyze URL.");
+    }
+
+    renderResult(data);
+  } catch (error) {
+    alert(error.message || "Unexpected error. Please try again.");
+  } finally {
+    form.classList.remove("is-loading");
+  }
+}
+
+function renderResult(data) {
+  const riskPct = Math.round((data.risk_score || 0) * 100);
+  const confPct = Math.round((data.confidence || 0) * 100);
+
+  resultSection?.classList.remove("hidden");
+  resultUrlEl.textContent = data.url || "";
+  resultTitleEl.textContent = data.title || "No clear journal title detected.";
+  resultDescriptionEl.textContent =
+    data.description || "No meta description was available for this URL.";
+  resultConfidenceEl.textContent = `Model confidence: ${confPct}%`;
+
+  riskScoreValueEl.textContent = `${riskPct}%`;
+
+  const deg = Math.min(330, Math.max(0, (riskPct / 100) * 330));
+  if (gaugeFillEl) {
+    gaugeFillEl.style.transform = `rotate(${deg}deg)`;
+  }
+
+  resultLabelEl.textContent = data.label || "Unknown";
+  resultLabelEl.classList.remove("pill--danger", "pill--success");
+  if ((data.label || "").toLowerCase().includes("predatory")) {
+    resultLabelEl.classList.add("pill--danger");
+  } else {
+    resultLabelEl.classList.add("pill--success");
+  }
+}
+
+if (form) {
+  form.addEventListener("submit", handleAnalyze);
+}
+
+const journalInput = document.getElementById("journalUrl");
+if (journalInput && form) {
+  journalInput.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      form.requestSubmit ? form.requestSubmit() : form.submit();
+    }
+  });
+}
+
+function attachEnterToForm(formId) {
+  const formEl = document.getElementById(formId);
+  if (!formEl) return;
+  formEl.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") {
+      const target = event.target;
+      if (target && target.tagName === "TEXTAREA") return;
+      formEl.requestSubmit ? formEl.requestSubmit() : formEl.submit();
+    }
+  });
+}
+
+attachEnterToForm("loginForm");
+attachEnterToForm("signupForm");
+
