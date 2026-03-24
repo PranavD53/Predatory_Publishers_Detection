@@ -2,7 +2,7 @@ import os
 
 from flask import Flask, render_template, request, jsonify, redirect, url_for, session, abort
 
-from predatory_detector.model import load_or_train_model, predict_journal
+from predatory_detector.model import predict_journal
 from predatory_detector.database import (
     init_db,
     save_prediction,
@@ -20,7 +20,6 @@ def create_app() -> Flask:
     app.secret_key = os.environ.get("SECRET_KEY", "change-this-secret-in-production")
 
     init_db()
-    load_or_train_model()
 
     @app.context_processor
     def inject_user():
