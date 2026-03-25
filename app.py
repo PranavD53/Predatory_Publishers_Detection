@@ -17,7 +17,7 @@ from predatory_detector.database import (
 
 def create_app() -> Flask:
     app = Flask(__name__)
-    app.secret_key = os.environ.get("SECRET_KEY", "change-this-secret-in-production")
+    # app.secret_key = os.environ.get("SECRET_KEY", "change-this-secret-in-production")
 
     init_db()
 
@@ -145,7 +145,5 @@ def create_app() -> Flask:
 
 if __name__ == "__main__":
     flask_app = create_app()
-    host = "0.0.0.0"
-    port = int(os.environ.get("PORT", "10000"))
-    flask_app.run(host=host, port=port, debug=False)
+    flask_app.run(debug=False)
 

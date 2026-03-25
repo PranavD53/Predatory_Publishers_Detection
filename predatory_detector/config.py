@@ -5,8 +5,8 @@ from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 DATA_DIR = BASE_DIR / "data"
-MODELS_DIR = Path(os.environ.get("MODELS_DIR", str(BASE_DIR / "models")))
-DB_PATH = Path(os.environ.get("DB_PATH", str(BASE_DIR / "predatory_journals.db")))
+MODELS_DIR = BASE_DIR / "models"
+DB_PATH = BASE_DIR / "predatory_journals.db"
 
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 MODELS_DIR.mkdir(parents=True, exist_ok=True)
