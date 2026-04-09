@@ -2,7 +2,6 @@ import os
 
 from flask import Flask, render_template, request, jsonify, redirect, url_for, session, abort
 
-from predatory_detector.model import predict_journal
 from predatory_detector.database import (
     init_db,
     save_prediction,
@@ -56,6 +55,9 @@ def create_app() -> Flask:
 
     @app.route("/analyze", methods=["POST"])
     def analyze():
+        # Lazy import so web workers can boot quickly on platforms like Render.
+        from predatory_detector.model import predict_journal
+
         data = request.get_json() or {}
         url = data.get("url", "").strip()
         if not url:
@@ -145,5 +147,5 @@ def create_app() -> Flask:
 
 if __name__ == "__main__":
     flask_app = create_app()
-    flask_app.run(debug=False)
+    flask_app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)), debug=False)
 
