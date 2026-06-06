@@ -274,6 +274,9 @@ def predict_journal(url: str) -> Dict[str, Any]:
     explainer_pipeline = pipeline if type(pipeline).__name__ != "TextClassificationPipeline" else get_explainer_pipeline()
     suspicious_phrases = extract_suspicious_phrases(input_text, explainer_pipeline)
     
+    from .database import check_directory_listing
+    directory_match = check_directory_listing(scraped.domain)
+    
     return {
         "url": url,
         "title": scraped.title,
@@ -282,5 +285,6 @@ def predict_journal(url: str) -> Dict[str, Any]:
         "risk_score": result.risk_score,
         "confidence": result.confidence,
         "suspicious_phrases": suspicious_phrases,
+        "directory_match": directory_match,
     }
 

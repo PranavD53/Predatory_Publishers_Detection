@@ -102,6 +102,23 @@ function renderResult(data) {
     resultLabelEl.classList.add("pill--success");
   }
 
+  const directoryBadgeEl = document.getElementById("directoryBadge");
+  if (directoryBadgeEl) {
+    directoryBadgeEl.classList.add("hidden");
+    directoryBadgeEl.classList.remove("pill--success", "pill--danger", "pill--info");
+    
+    if (data.directory_match) {
+      directoryBadgeEl.classList.remove("hidden");
+      if (data.directory_match.source === "doaj") {
+        directoryBadgeEl.textContent = "Verified on DOAJ";
+        directoryBadgeEl.classList.add("pill--info");
+      } else if (data.directory_match.source === "bealls") {
+        directoryBadgeEl.textContent = "Listed on Beall's List";
+        directoryBadgeEl.classList.add("pill--danger");
+      }
+    }
+  }
+
   const suspiciousWrapper = document.getElementById("suspiciousPhrasesWrapper");
   const suspiciousList = document.getElementById("suspiciousPhrasesList");
   if (suspiciousList) {

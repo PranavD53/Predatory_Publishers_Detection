@@ -57,8 +57,20 @@ def init_db() -> None:
         except sqlite3.OperationalError:
             conn.execute("ALTER TABLE predictions ADD COLUMN user_id INTEGER")
 
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS directory_listings (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                domain TEXT NOT NULL UNIQUE,
+                source TEXT NOT NULL CHECK(source IN ('doaj', 'bealls')),
+                name TEXT NOT NULL
+            )
+            """
+        )
+
         _seed_admin_if_missing(conn, "Pranav", "Pranav@123")
         _seed_admin_if_missing(conn, "Spandana", "Spandana@123")
+        _seed_directory_listings_if_empty(conn)
 
 
 def _seed_admin_if_missing(conn: sqlite3.Connection, username: str, password: str) -> None:
@@ -152,5 +164,62 @@ def get_recent_predictions_for_user(user_id: int, limit: int = 25) -> List[Dict[
         )
         rows = cur.fetchall()
         return [dict(r) for r in rows]
+
+
+def _seed_directory_listings_if_empty(conn: sqlite3.Connection) -> None:
+    cur = conn.execute("SELECT id FROM directory_listings LIMIT 1")
+    if cur.fetchone() is None:
+        doaj_journals = [
+            ("nature.com", "Nature Publishing Group"),
+            ("plos.org", "PLOS (Public Library of Science)"),
+            ("biomedcentral.com", "BioMed Central"),
+            ("frontiersin.org", "Frontiers Media"),
+            ("sciencedirect.com", "Elsevier / ScienceDirect"),
+            ("mdpi.com", "MDPI"),
+            ("springer.com", "Springer"),
+            ("wiley.com", "Wiley-Blackwell"),
+            ("ieee.org", "IEEE"),
+        ]
+        bealls_journals = [
+            ("omicsonline.org", "OMICS Publishing Group"),
+            ("academicjournals.org", "Academic Journals"),
+            ("sciencedomain.org", "ScienceDomain International"),
+            ("sciencepublishinggroup.com", "Science Publishing Group (SciencePG)"),
+            ("iaeme.com", "IAEME Publication"),
+            ("wjent.org", "World Journal of Engineering and Technology"),
+            ("ijmer.com", "International Journal of Modern Engineering Research"),
+            ("iosrjournals.org", "IOSR Journals"),
+            ("scirp.org", "Scientific Research Publishing (SCIRP)"),
+        ]
+        
+        for domain, name in doaj_journals:
+            conn.execute(
+                "INSERT OR IGNORE INTO directory_listings (domain, source, name) VALUES (?, 'doaj', ?)",
+                (domain, name),
+            )
+        for domain, name in bealls_journals:
+            conn.execute(
+                "INSERT OR IGNORE INTO directory_listings (domain, source, name) VALUES (?, 'bealls', ?)",
+                (domain, name),
+            )
+
+
+def check_directory_listing(domain: str) -> Optional[Dict[str, Any]]:
+    """Check database if the domain is listed in DOAJ (whitelist) or Beall's List (blacklist)."""
+    domain = domain.strip().lower()
+    
+    # Generate domain variations (e.g. ['journals.plos.org', 'plos.org'])
+    parts = domain.split('.')
+    variations = []
+    for i in range(len(parts) - 1):
+        variations.append('.'.join(parts[i:]))
+        
+    with get_conn() as conn:
+        for var in variations:
+            cur = conn.execute("SELECT source, name FROM directory_listings WHERE domain = ?", (var,))
+            row = cur.fetchone()
+            if row:
+                return dict(row)
+    return None
 
 

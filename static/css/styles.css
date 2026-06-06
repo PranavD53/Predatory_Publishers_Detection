@@ -883,3 +883,22 @@ body {
   border-color: rgba(201, 59, 61, 0.3);
 }
 
+.result-pills {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.pill--info {
+  border-color: rgba(66, 153, 225, 0.9);
+  background: rgba(66, 153, 225, 0.12);
+  color: #bee3f8;
+}
+
+[data-theme="light"] .pill--info {
+  color: #2b6cb0;
+  background: rgba(43, 108, 176, 0.08);
+  border-color: rgba(43, 108, 176, 0.3);
+}
+
