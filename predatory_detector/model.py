@@ -12,14 +12,13 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.pipeline import Pipeline
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import classification_report
-from transformers import AutoModelForSequenceClassification, AutoTokenizer, TextClassificationPipeline
 
 from .config import DATA_DIR, MODEL_FILE, BERT_MODEL_DIR
 from .preprocess import build_input_text
 from .scraper import scrape_journal
 
 
-_MODEL_PIPELINE: Optional[Union[Pipeline, TextClassificationPipeline]] = None
+_MODEL_PIPELINE: Optional[Union[Pipeline, Any]] = None
 
 
 @dataclass
@@ -44,7 +43,8 @@ def _bert_model_exists() -> bool:
     return BERT_MODEL_DIR.exists() and (BERT_MODEL_DIR / "config.json").exists()
 
 
-def _load_bert_pipeline() -> TextClassificationPipeline:
+def _load_bert_pipeline() -> Any:
+    from transformers import AutoModelForSequenceClassification, AutoTokenizer, TextClassificationPipeline
     tokenizer = AutoTokenizer.from_pretrained(BERT_MODEL_DIR)
     model = AutoModelForSequenceClassification.from_pretrained(BERT_MODEL_DIR)
     return TextClassificationPipeline(
@@ -57,14 +57,16 @@ def _load_bert_pipeline() -> TextClassificationPipeline:
     )
 
 
-def load_or_train_model() -> Union[Pipeline, TextClassificationPipeline]:
+def load_or_train_model() -> Union[Pipeline, Any]:
     global _MODEL_PIPELINE
 
     if _MODEL_PIPELINE is not None:
         return _MODEL_PIPELINE
 
-    # Prefer a fine-tuned BERT model if one has been trained.
-    if _bert_model_exists():
+    # Prefer a fine-tuned BERT model if one has been trained and we haven't forced the light model.
+    import os
+    force_light = os.environ.get("FORCE_LIGHT_MODEL", "false").lower() in ("true", "1", "yes")
+    if _bert_model_exists() and not force_light:
         _MODEL_PIPELINE = _load_bert_pipeline()
         return _MODEL_PIPELINE
 
@@ -139,7 +141,8 @@ def predict_journal(url: str) -> Dict[str, Any]:
     scraped = scrape_journal(url)
     input_text = build_input_text(scraped.title, scraped.description, scraped.text, scraped.domain)
 
-    if isinstance(pipeline, TextClassificationPipeline):
+    # Check class name to avoid importing transformers unless BERT is loaded.
+    if type(pipeline).__name__ == "TextClassificationPipeline":
         raw_output = pipeline(input_text)
         # Handle both shapes: [ {label, score}, ... ] and [ [ {label, score}, ... ] ]
         if isinstance(raw_output, list) and raw_output:
@@ -153,25 +156,61 @@ def predict_journal(url: str) -> Dict[str, Any]:
         else:
             raise ValueError(f"Unexpected BERT pipeline output type: {type(raw_output)}")
 
-        # Expect labels like "LABEL_0" / "LABEL_1" or "Legitimate" / "Predatory"
-        score_map = {s["label"]: float(s["score"]) for s in scores}
-        predatory_score = None
-        for key in score_map:
-            lower = key.lower()
-            if "pred" in lower or "1" in lower:
-                predatory_score = score_map[key]
-                break
-        if predatory_score is None:
-            predatory_score = float(scores[1]["score"]) if len(scores) > 1 else float(scores[0]["score"])
-        risk_score = float(predatory_score)
-        confidence = float(max(score_map.values()))
-        label_str = "Predatory" if risk_score >= 0.5 else "Legitimate"
+        # Some transformers versions ignore `return_all_scores=True` and only return
+        # the top label. In that case, the score is confidence of that label, not
+        # necessarily the "predatory probability".
+        if len(scores) == 1:
+            top_label = str(scores[0].get("label", "")).strip()
+            top_score = float(scores[0].get("score", 0.0))
+            lower = top_label.lower()
+            if "pred" in lower or lower in {"label_1", "1"}:
+                risk_score = top_score
+                label_str = "Predatory"
+            else:
+                risk_score = 1.0 - top_score
+                label_str = "Legitimate"
+            confidence = top_score
+        else:
+            # Expect labels like "LABEL_0" / "LABEL_1" or "Legitimate" / "Predatory"
+            score_map = {str(s["label"]): float(s["score"]) for s in scores}
+            predatory_score = None
+            for key in score_map:
+                lower = key.lower()
+                if "pred" in lower or lower in {"label_1", "1"}:
+                    predatory_score = score_map[key]
+                    break
+            if predatory_score is None:
+                # Fallback to second element if present, else first.
+                predatory_score = float(scores[1]["score"]) if len(scores) > 1 else float(scores[0]["score"])
+            risk_score = float(predatory_score)
+            confidence = float(max(score_map.values())) if score_map else float(predatory_score)
+            label_str = "Predatory" if risk_score >= 0.48 else "Legitimate"
     else:
         probs = pipeline.predict_proba([input_text])[0]
-        pred_label = int(np.argmax(probs))
         confidence = float(np.max(probs))
-        risk_score = float(probs[1])  # probability of predatory class
-        label_str = "Predatory" if pred_label == 1 else "Legitimate"
+
+        # NOTE: scikit-learn orders predict_proba columns by the estimator's `classes_`,
+        # which is not guaranteed to be [0, 1]. We must map the "predatory" probability
+        # from the correct column.
+        clf = pipeline.named_steps.get("clf")
+        classes = getattr(clf, "classes_", None)
+        if classes is None:
+            # Fallback: assume conventional binary ordering [0, 1]
+            predatory_idx = 1 if len(probs) > 1 else 0
+        else:
+            classes = list(classes)
+            if 1 in classes:
+                predatory_idx = classes.index(1)
+            else:
+                # If trained with string labels, try common variants.
+                lowered = [str(c).lower() for c in classes]
+                predatory_idx = next(
+                    (i for i, c in enumerate(lowered) if "pred" in c or c in {"1", "true", "yes"}),
+                    1 if len(probs) > 1 else 0,
+                )
+
+        risk_score = float(probs[predatory_idx])
+        label_str = "Predatory" if risk_score >= 0.5 else "Legitimate"
 
     result = PredictionResult(label=label_str, risk_score=risk_score, confidence=confidence)
     return {

@@ -52,7 +52,17 @@ async function handleAnalyze(event) {
       body: JSON.stringify({ url }),
     });
 
-    const data = await response.json();
+    let data;
+    const contentType = response.headers.get("content-type");
+    if (contentType && contentType.includes("application/json")) {
+      data = await response.json();
+    } else {
+      const text = await response.text();
+      // Render or standard web servers return HTML on 502/504/500 errors.
+      // Strip HTML tags for a cleaner alert.
+      const cleanText = text.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim().substring(0, 200);
+      throw new Error(`Server Error (${response.status} ${response.statusText}): ${cleanText || "No response body"}`);
+    }
 
     if (!response.ok) {
       throw new Error(data.error || "Failed to analyze URL.");
