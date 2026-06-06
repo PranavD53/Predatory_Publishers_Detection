@@ -136,6 +136,63 @@ def reload_model() -> Pipeline:
     return load_or_train_model()
 
 
+def get_explainer_pipeline() -> Optional[Any]:
+    try:
+        if MODEL_FILE.exists():
+            return joblib.load(MODEL_FILE)
+    except Exception:
+        pass
+    return None
+
+
+def extract_suspicious_phrases(text: str, pipeline: Any, top_n: int = 8) -> list[str]:
+    # 1. Fallback list of high-priority predatory phrases
+    predefined_keywords = [
+        "rapid publication", "fast track review", "low fees", "open access journal of",
+        "index copernicus", "fake impact factor", "scholarly scientific", "global impact factor",
+        "waived fees", "innovative research", "unbeatable price", "publish quickly",
+        "rapid peer review", "no publication fee", "low publication charge"
+    ]
+    
+    matched = []
+    text_lower = text.lower()
+    for kw in predefined_keywords:
+        if kw in text_lower:
+            matched.append(kw)
+            
+    # 2. Extract high-coefficient n-grams if pipeline is available
+    if pipeline and type(pipeline).__name__ != "TextClassificationPipeline":
+        try:
+            tfidf = pipeline.named_steps.get("tfidf")
+            clf = pipeline.named_steps.get("clf")
+            if tfidf and clf:
+                feature_names = tfidf.get_feature_names_out()
+                coefs = clf.coef_[0]
+                
+                # Transform the text to get TF-IDF weights
+                X_text = tfidf.transform([text])
+                nonzero_indices = X_text.nonzero()[1]
+                
+                features_with_weights = []
+                for idx in nonzero_indices:
+                    coef = coefs[idx]
+                    # Class 1 is predatory, so positive coefficient means predatory
+                    if coef > 0:
+                        feature_name = feature_names[idx]
+                        tfidf_val = X_text[0, idx]
+                        score = coef * tfidf_val
+                        features_with_weights.append((feature_name, score))
+                
+                features_with_weights.sort(key=lambda x: x[1], reverse=True)
+                for feat, score in features_with_weights[:top_n]:
+                    if feat not in matched:
+                        matched.append(feat)
+        except Exception:
+            pass
+            
+    return matched[:top_n]
+
+
 def predict_journal(url: str) -> Dict[str, Any]:
     pipeline = load_or_train_model()
     scraped = scrape_journal(url)
@@ -213,6 +270,10 @@ def predict_journal(url: str) -> Dict[str, Any]:
         label_str = "Predatory" if risk_score >= 0.5 else "Legitimate"
 
     result = PredictionResult(label=label_str, risk_score=risk_score, confidence=confidence)
+    
+    explainer_pipeline = pipeline if type(pipeline).__name__ != "TextClassificationPipeline" else get_explainer_pipeline()
+    suspicious_phrases = extract_suspicious_phrases(input_text, explainer_pipeline)
+    
     return {
         "url": url,
         "title": scraped.title,
@@ -220,5 +281,6 @@ def predict_journal(url: str) -> Dict[str, Any]:
         "label": result.label,
         "risk_score": result.risk_score,
         "confidence": result.confidence,
+        "suspicious_phrases": suspicious_phrases,
     }
 

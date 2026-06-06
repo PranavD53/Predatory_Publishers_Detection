@@ -101,6 +101,23 @@ function renderResult(data) {
   } else {
     resultLabelEl.classList.add("pill--success");
   }
+
+  const suspiciousWrapper = document.getElementById("suspiciousPhrasesWrapper");
+  const suspiciousList = document.getElementById("suspiciousPhrasesList");
+  if (suspiciousList) {
+    suspiciousList.innerHTML = "";
+    if (data.suspicious_phrases && data.suspicious_phrases.length > 0) {
+      suspiciousWrapper?.classList.remove("hidden");
+      data.suspicious_phrases.forEach((phrase) => {
+        const span = document.createElement("span");
+        span.className = "suspicious-phrase-tag";
+        span.textContent = phrase;
+        suspiciousList.appendChild(span);
+      });
+    } else {
+      suspiciousWrapper?.classList.add("hidden");
+    }
+  }
 }
 
 if (form) {

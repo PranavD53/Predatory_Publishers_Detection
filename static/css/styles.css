@@ -846,3 +846,40 @@ body {
   }
 }
 
+.suspicious-phrases-wrapper {
+  margin-top: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.suspicious-phrases-title {
+  font-size: 0.85rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.suspicious-phrases-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.suspicious-phrase-tag {
+  background: rgba(240, 95, 97, 0.12);
+  border: 1px solid rgba(240, 95, 97, 0.35);
+  color: var(--danger);
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 0.78rem;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+}
+
+[data-theme="light"] .suspicious-phrase-tag {
+  background: rgba(201, 59, 61, 0.08);
+  border-color: rgba(201, 59, 61, 0.3);
+}
+
