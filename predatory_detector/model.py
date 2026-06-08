@@ -193,9 +193,83 @@ def extract_suspicious_phrases(text: str, pipeline: Any, top_n: int = 8) -> list
     return matched[:top_n]
 
 
+def check_secure_connection(url: str) -> tuple[bool, str]:
+    """
+    Check if the URL supports a secure HTTPS connection.
+    Returns (is_secure, error_message).
+    """
+    from urllib.parse import urlparse
+    parsed = urlparse(url)
+    
+    domain = parsed.netloc or parsed.path.split("/")[0]
+    if not domain:
+        return False, "Invalid URL format"
+        
+    https_url = f"https://{domain}"
+    
+    headers = {
+        "User-Agent": (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/122.0 Safari/537.36"
+        )
+    }
+    
+    try:
+        import requests
+        requests.head(https_url, headers=headers, timeout=5)
+        return True, ""
+    except requests.exceptions.SSLError as e:
+        return False, f"Insecure connection / SSL certificate error: {e}"
+    except requests.exceptions.ConnectionError as e:
+        return False, f"Connection failed (host might be offline or blocked): {e}"
+    except Exception as e:
+        return False, f"Connection warning: {e}"
+
+
 def predict_journal(url: str) -> Dict[str, Any]:
+    from urllib.parse import urlparse
+    from .database import check_directory_listing
+    
+    domain = urlparse(url).netloc or url
+    directory_match = check_directory_listing(domain)
+    
+    # Run security check (bypassing localhost/loopback)
+    is_local = any(l in domain for l in ("localhost", "127.0.0.1", "0.0.0.0"))
+    if not is_local:
+        is_secure, ssl_error = check_secure_connection(url)
+        if not is_secure:
+            return {
+                "url": url,
+                "title": "Unsafe / Insecure Website",
+                "description": f"This website does not support a secure connection or has SSL/TLS certificate errors. Attackers could intercept information sent to this site. Technical reason: {ssl_error}",
+                "label": "Predatory",
+                "risk_score": 1.0,
+                "confidence": 1.0,
+                "suspicious_phrases": ["insecure connection", "ssl/tls warning", "security risk", "unencrypted channel"],
+                "directory_match": directory_match,
+            }
+    
+    try:
+        scraped = scrape_journal(url)
+        is_unsafe = False
+    except Exception as exc:
+        is_unsafe = True
+        error_msg = str(exc)
+        
+    if is_unsafe:
+        return {
+            "url": url,
+            "title": "Unsafe / Unreachable Website",
+            "description": f"The website could not be accessed safely. This is common for domains that are offline, blocked, or have invalid SSL/TLS certificates. Technical reason: {error_msg}",
+            "label": "Predatory",
+            "risk_score": 1.0,
+            "confidence": 1.0,
+            "suspicious_phrases": ["unreachable domain", "connection failure", "invalid ssl/tls", "security risk"],
+            "directory_match": directory_match,
+        }
+
     pipeline = load_or_train_model()
-    scraped = scrape_journal(url)
     input_text = build_input_text(scraped.title, scraped.description, scraped.text, scraped.domain)
 
     # Check class name to avoid importing transformers unless BERT is loaded.
@@ -273,9 +347,6 @@ def predict_journal(url: str) -> Dict[str, Any]:
     
     explainer_pipeline = pipeline if type(pipeline).__name__ != "TextClassificationPipeline" else get_explainer_pipeline()
     suspicious_phrases = extract_suspicious_phrases(input_text, explainer_pipeline)
-    
-    from .database import check_directory_listing
-    directory_match = check_directory_listing(scraped.domain)
     
     return {
         "url": url,
