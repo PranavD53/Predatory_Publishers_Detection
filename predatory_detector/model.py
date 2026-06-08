@@ -343,6 +343,16 @@ def predict_journal(url: str) -> Dict[str, Any]:
         risk_score = float(probs[predatory_idx])
         label_str = "Predatory" if risk_score >= 0.5 else "Legitimate"
 
+    if directory_match:
+        if directory_match["source"] == "doaj":
+            label_str = "Legitimate"
+            risk_score = 0.0
+            confidence = 1.0
+        elif directory_match["source"] == "bealls":
+            label_str = "Predatory"
+            risk_score = 1.0
+            confidence = 1.0
+
     result = PredictionResult(label=label_str, risk_score=risk_score, confidence=confidence)
     
     explainer_pipeline = pipeline if type(pipeline).__name__ != "TextClassificationPipeline" else get_explainer_pipeline()

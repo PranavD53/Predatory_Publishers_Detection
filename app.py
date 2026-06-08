@@ -11,6 +11,9 @@ from predatory_detector.database import (
     list_users,
     update_user_role,
     get_user_by_id,
+    delete_user_by_id,
+    submit_admin_request,
+    handle_admin_request,
 )
 
 
@@ -129,14 +132,39 @@ def create_app() -> Flask:
     def admin_dashboard():
         if request.method == "POST":
             target_id = int(request.form.get("user_id"))
-            new_role = request.form.get("role")
-            if new_role not in {"admin", "user"}:
-                abort(400)
-            update_user_role(target_id, new_role)
+            action = request.form.get("action")
+            if action in {"approve", "reject", "revoke"}:
+                handle_admin_request(target_id, action)
+            else:
+                new_role = request.form.get("role")
+                if new_role in {"admin", "user"}:
+                    update_user_role(target_id, new_role)
             return redirect(url_for("admin_dashboard"))
 
         users = list_users()
         return render_template("admin.html", users=users)
+
+    @app.route("/delete-account", methods=["POST"])
+    @login_required()
+    def delete_account():
+        user_id = session.get("user_id")
+        delete_user_by_id(user_id)
+        session.clear()
+        return redirect(url_for("index"))
+
+    @app.route("/request-admin", methods=["POST"])
+    @login_required()
+    def request_admin():
+        user_id = session.get("user_id")
+        submit_admin_request(user_id)
+        return redirect(url_for("index"))
+
+    @app.route("/history")
+    @login_required()
+    def history():
+        user_id = session.get("user_id")
+        predictions = get_recent_predictions_for_user(user_id, limit=100)
+        return render_template("history.html", predictions=predictions)
 
     @app.route("/health")
     def health() -> tuple[dict, int]:

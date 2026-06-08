@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+
+{% block content %}
+  <section class="admin-section glass">
+    <div class="admin-header">
+      <div>
+        <h2>Evaluation History</h2>
+        <p>A personal logs collection of your past journal check evaluations.</p>
+      </div>
+      <div class="admin-actions">
+        <button id="exportCsv" class="btn-primary btn-primary--small">Export CSV</button>
+      </div>
+    </div>
+
+    {% if predictions %}
+      <div class="table-wrapper">
+        <table class="lux-table">
+          <thead>
+            <tr>
+              <th>Date Checked (UTC)</th>
+              <th>Journal URL</th>
+              <th>Prediction</th>
+              <th>Risk</th>
+              <th>Confidence</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for pred in predictions %}
+              <tr>
+                <td>{{ pred.created_at }}</td>
+                <td class="cell-url" title="{{ pred.url }}">{{ pred.url }}</td>
+                <td>
+                  <span class="pill pill--small {% if pred.label == 'Predatory' %}pill--danger{% else %}pill--success{% endif %}">
+                    {{ pred.label }}
+                  </span>
+                </td>
+                <td>{{ '%.0f'|format(pred.risk_score * 100) }}%</td>
+                <td>{{ '%.0f'|format(pred.confidence * 100) }}%</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <p class="muted">You haven't run any evaluations yet. Go to the dashboard to scan a website!</p>
+    {% endif %}
+  </section>
+{% endblock %}
+
+{% block extra_scripts %}
+  <script src="{{ url_for('static', filename='js/admin.js') }}"></script>
+{% endblock %}

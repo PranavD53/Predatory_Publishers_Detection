@@ -57,6 +57,12 @@ def init_db() -> None:
         except sqlite3.OperationalError:
             conn.execute("ALTER TABLE predictions ADD COLUMN user_id INTEGER")
 
+        # Ensure admin_request column exists on users table
+        try:
+            conn.execute("SELECT admin_request FROM users LIMIT 1")
+        except sqlite3.OperationalError:
+            conn.execute("ALTER TABLE users ADD COLUMN admin_request TEXT DEFAULT 'none'")
+
         conn.execute(
             """
             CREATE TABLE IF NOT EXISTS directory_listings (
@@ -123,7 +129,7 @@ def verify_user_credentials(username: str, password: str) -> Optional[Dict[str, 
 def list_users() -> List[Dict[str, Any]]:
     with get_conn() as conn:
         cur = conn.execute(
-            "SELECT id, username, role, created_at FROM users ORDER BY created_at DESC"
+            "SELECT id, username, role, created_at, admin_request FROM users ORDER BY created_at DESC"
         )
         return [dict(r) for r in cur.fetchall()]
 
@@ -131,6 +137,27 @@ def list_users() -> List[Dict[str, Any]]:
 def update_user_role(user_id: int, role: str) -> None:
     with get_conn() as conn:
         conn.execute("UPDATE users SET role = ? WHERE id = ?", (role, user_id))
+
+
+def delete_user_by_id(user_id: int) -> None:
+    with get_conn() as conn:
+        conn.execute("DELETE FROM predictions WHERE user_id = ?", (user_id,))
+        conn.execute("DELETE FROM users WHERE id = ?", (user_id,))
+
+
+def submit_admin_request(user_id: int) -> None:
+    with get_conn() as conn:
+        conn.execute("UPDATE users SET admin_request = 'pending' WHERE id = ?", (user_id,))
+
+
+def handle_admin_request(user_id: int, action: str) -> None:
+    with get_conn() as conn:
+        if action == 'approve':
+            conn.execute("UPDATE users SET role = 'admin', admin_request = 'approved' WHERE id = ?", (user_id,))
+        elif action == 'reject':
+            conn.execute("UPDATE users SET role = 'user', admin_request = 'rejected' WHERE id = ?", (user_id,))
+        elif action == 'revoke':
+            conn.execute("UPDATE users SET role = 'user', admin_request = 'none' WHERE id = ?", (user_id,))
 
 
 def save_prediction(
@@ -167,37 +194,16 @@ def get_recent_predictions_for_user(user_id: int, limit: int = 25) -> List[Dict[
 
 
 def _seed_directory_listings_if_empty(conn: sqlite3.Connection) -> None:
-    cur = conn.execute("SELECT id FROM directory_listings LIMIT 1")
-    if cur.fetchone() is None:
-        doaj_journals = [
-            ("nature.com", "Nature Publishing Group"),
-            ("plos.org", "PLOS (Public Library of Science)"),
-            ("biomedcentral.com", "BioMed Central"),
-            ("frontiersin.org", "Frontiers Media"),
-            ("sciencedirect.com", "Elsevier / ScienceDirect"),
-            ("mdpi.com", "MDPI"),
-            ("springer.com", "Springer"),
-            ("wiley.com", "Wiley-Blackwell"),
-            ("ieee.org", "IEEE"),
-        ]
-        bealls_journals = [
-            ("omicsonline.org", "OMICS Publishing Group"),
-            ("academicjournals.org", "Academic Journals"),
-            ("sciencedomain.org", "ScienceDomain International"),
-            ("sciencepublishinggroup.com", "Science Publishing Group (SciencePG)"),
-            ("iaeme.com", "IAEME Publication"),
-            ("wjent.org", "World Journal of Engineering and Technology"),
-            ("ijmer.com", "International Journal of Modern Engineering Research"),
-            ("iosrjournals.org", "IOSR Journals"),
-            ("scirp.org", "Scientific Research Publishing (SCIRP)"),
-        ]
-        
-        for domain, name in doaj_journals:
+    cur = conn.execute("SELECT COUNT(*) FROM directory_listings")
+    count = cur.fetchone()[0]
+    if count < 200:
+        from .seed_data import DOAJ_JOURNALS, BEALLS_JOURNALS
+        for domain, name in DOAJ_JOURNALS:
             conn.execute(
                 "INSERT OR IGNORE INTO directory_listings (domain, source, name) VALUES (?, 'doaj', ?)",
                 (domain, name),
             )
-        for domain, name in bealls_journals:
+        for domain, name in BEALLS_JOURNALS:
             conn.execute(
                 "INSERT OR IGNORE INTO directory_listings (domain, source, name) VALUES (?, 'bealls', ?)",
                 (domain, name),

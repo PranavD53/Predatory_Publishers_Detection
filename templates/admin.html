@@ -16,6 +16,7 @@
             <tr>
               <th>User</th>
               <th>Role</th>
+              <th>Admin Request</th>
               <th>Created at (UTC)</th>
               <th>Actions</th>
             </tr>
@@ -29,12 +30,26 @@
                     {{ user.role|capitalize }}
                   </span>
                 </td>
+                <td>
+                  {% if user.role == 'admin' %}
+                    <span class="status-text status-approved">Approved ✅</span>
+                  {% elif user.admin_request == 'pending' %}
+                    <span class="status-text status-pending">Pending ⏳</span>
+                  {% elif user.admin_request == 'rejected' %}
+                    <span class="status-text status-rejected">Declined ❌</span>
+                  {% else %}
+                    <span class="muted">None</span>
+                  {% endif %}
+                </td>
                 <td>{{ user.created_at }}</td>
                 <td>
                   <form method="post" class="inline-form">
                     <input type="hidden" name="user_id" value="{{ user.id }}" />
                     {% if user.role == 'admin' %}
-                      <button name="role" value="user" class="btn-ghost btn-ghost--small">Revoke admin</button>
+                      <button name="action" value="revoke" class="btn-ghost btn-ghost--small">Revoke admin</button>
+                    {% elif user.admin_request == 'pending' %}
+                      <button name="action" value="approve" class="btn-primary btn-primary--small" style="margin-right: 4px;">Approve</button>
+                      <button name="action" value="reject" class="btn-ghost btn-ghost--small">Reject</button>
                     {% else %}
                       <button name="role" value="admin" class="btn-primary btn-primary--small">Make admin</button>
                     {% endif %}

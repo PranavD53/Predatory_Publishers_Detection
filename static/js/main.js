@@ -135,6 +135,43 @@ function renderResult(data) {
       suspiciousWrapper?.classList.add("hidden");
     }
   }
+
+  const recentList = document.getElementById("recentList");
+  if (recentList) {
+    const placeholder = document.getElementById("recentListPlaceholder");
+    if (placeholder) {
+      placeholder.remove();
+    }
+    
+    const li = document.createElement("li");
+    const riskPct = Math.round((data.risk_score || 0) * 100);
+    const confPct = Math.round((data.confidence || 0) * 100);
+    const isPredatory = (data.label || "").toLowerCase().includes("predatory");
+    const labelClass = isPredatory ? "pill--danger" : "pill--success";
+    
+    li.innerHTML = `
+      <div class="recent-url" title="${data.url || ""}">${data.url || ""}</div>
+      <div class="recent-meta">
+        <span class="pill pill--small ${labelClass}">
+          ${data.label || "Unknown"}
+        </span>
+        <span class="recent-score">
+          Risk: ${riskPct}% · Conf: ${confPct}%
+        </span>
+      </div>
+    `;
+    
+    recentList.insertBefore(li, recentList.firstChild);
+    
+    while (recentList.children.length > 5) {
+      const last = recentList.lastChild;
+      if (last) {
+        last.remove();
+      } else {
+        break;
+      }
+    }
+  }
 }
 
 if (form) {

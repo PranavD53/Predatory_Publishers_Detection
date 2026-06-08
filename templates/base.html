@@ -41,10 +41,14 @@
               <span class="user-name">{{ current_user.username }}</span>
               <span class="user-role">{{ current_user.role|capitalize }}</span>
             </span>
+            <a href="{{ url_for('history') }}" class="pill-link">History</a>
             {% if current_user.role == 'admin' %}
               <a href="{{ url_for('admin_dashboard') }}" class="pill-link">Admin</a>
             {% endif %}
             <a href="{{ url_for('logout') }}" class="pill-link pill-link--soft">Logout</a>
+            <form action="{{ url_for('delete_account') }}" method="post" style="display:inline;" onsubmit="return confirm('Are you sure you want to permanently delete your account? This will erase all your past checks.');">
+              <button type="submit" class="pill-link pill-link--danger" style="cursor:pointer;">Delete</button>
+            </form>
           {% else %}
             <a href="{{ url_for('login') }}" class="pill-link">Login</a>
             <a href="{{ url_for('signup') }}" class="pill-link pill-link--soft">Sign&nbsp;up</a>

@@ -1,6 +1,26 @@
 {% extends "base.html" %}
 
 {% block content %}
+  {% if current_user and current_user.role == 'user' %}
+    <div class="status-banner glass subtle-border">
+      {% if current_user.admin_request == 'none' %}
+        <span class="banner-text">💡 Want to manage user roles and view system activity logs?</span>
+        <form action="{{ url_for('request_admin') }}" method="post" class="banner-form">
+          <button type="submit" class="btn-primary btn-primary--small">Request Admin Role</button>
+        </form>
+      {% elif current_user.admin_request == 'pending' %}
+        <span class="banner-text status-pending">⏳ Your request for administrative privileges is pending review.</span>
+      {% elif current_user.admin_request == 'approved' %}
+        <span class="banner-text status-approved">🎉 Congratulations! Your request for admin role has been approved.</span>
+      {% elif current_user.admin_request == 'rejected' %}
+        <span class="banner-text status-rejected">⚠️ Your request for admin role was declined by the administrator.</span>
+        <form action="{{ url_for('request_admin') }}" method="post" class="banner-form">
+          <button type="submit" class="btn-ghost btn-ghost--small">Request Again</button>
+        </form>
+      {% endif %}
+    </div>
+  {% endif %}
+
   <section class="hero glass">
     <div class="hero-main">
       <h2>Evaluate any journal in seconds.</h2>
@@ -28,27 +48,34 @@
         <div class="metric-value">BERT</div>
         <p class="metric-note">Ready for upgrade with even richer datasets.</p>
       </div>
-      {% if recent_predictions %}
+      {% if current_user %}
         <div class="recent-card glass subtle-border">
           <div class="recent-header">
             <h3>Recent checks</h3>
           </div>
-          <ul class="recent-list">
-            {% for row in recent_predictions %}
-              <li>
-                <div class="recent-url" title="{{ row.url }}">{{ row.url }}</div>
-                <div class="recent-meta">
-                  <span class="pill pill--small {% if row.label == 'Predatory' %}pill--danger{% else %}pill--success{% endif %}">
-                    {{ row.label }}
-                  </span>
-                  <span class="recent-score">
-                    Risk: {{ '%.0f'|format(row.risk_score * 100) }}% ·
-                    Conf: {{ '%.0f'|format(row.confidence * 100) }}%
-                  </span>
-                </div>
-              </li>
-            {% endfor %}
+          <ul class="recent-list" id="recentList">
+            {% if recent_predictions %}
+              {% for row in recent_predictions %}
+                <li>
+                  <div class="recent-url" title="{{ row.url }}">{{ row.url }}</div>
+                  <div class="recent-meta">
+                    <span class="pill pill--small {% if row.label == 'Predatory' %}pill--danger{% else %}pill--success{% endif %}">
+                      {{ row.label }}
+                    </span>
+                    <span class="recent-score">
+                      Risk: {{ '%.0f'|format(row.risk_score * 100) }}% ·
+                      Conf: {{ '%.0f'|format(row.confidence * 100) }}%
+                    </span>
+                  </div>
+                </li>
+              {% endfor %}
+            {% else %}
+              <li class="muted" id="recentListPlaceholder">No recent checks yet.</li>
+            {% endif %}
           </ul>
+          <div class="recent-footer" style="margin-top: 10px; text-align: center;">
+            <a href="{{ url_for('history') }}" class="pill-link pill-link--ghost" style="font-size: 0.76rem; padding: 4px 10px;">View Full History</a>
+          </div>
         </div>
       {% endif %}
     </div>
