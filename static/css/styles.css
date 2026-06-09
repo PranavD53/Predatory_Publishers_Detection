@@ -1048,4 +1048,14 @@ body {
   box-shadow: 0 12px 28px rgba(240, 95, 97, 0.28);
 }
 
+.pill-link--active {
+  border-color: var(--border-strong) !important;
+  color: var(--text) !important;
+  background: var(--accent-soft) !important;
+}
+
+.copy-url-btn {
+  transition: all 0.18s ease;
+}
+
 

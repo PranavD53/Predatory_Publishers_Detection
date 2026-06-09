@@ -5,29 +5,63 @@
     <div class="admin-header">
       <div>
         <h2>Evaluation History</h2>
-        <p>A personal logs collection of your past journal check evaluations.</p>
+        <p>
+          {% if view == 'all' %}
+            A system-wide collection of all user journal check evaluations.
+          {% else %}
+            A personal logs collection of your past journal check evaluations.
+          {% endif %}
+        </p>
       </div>
-      <div class="admin-actions">
+      <div class="admin-actions" style="display:flex; gap:8px;">
         <button id="exportCsv" class="btn-primary btn-primary--small">Export CSV</button>
+        {% if predictions %}
+          <button id="deleteSelectedBtn" class="btn-ghost btn-ghost--small" disabled style="cursor:not-allowed; opacity: 0.5; color:var(--danger); border-color:rgba(240, 95, 97, 0.4);">Delete Selected</button>
+          {% if view == 'all' %}
+            <button id="clearHistoryBtn" class="btn-ghost btn-ghost--small" data-scope="all" style="cursor:pointer; color:var(--danger); border-color:rgba(240, 95, 97, 0.4);">Clear System History</button>
+          {% else %}
+            <button id="clearHistoryBtn" class="btn-ghost btn-ghost--small" data-scope="user" style="cursor:pointer; color:var(--danger); border-color:rgba(240, 95, 97, 0.4);">Clear My History</button>
+          {% endif %}
+        {% endif %}
       </div>
     </div>
+
+    {% if is_admin %}
+      <div class="admin-tabs" style="display:flex; gap:12px; margin-bottom: 20px; border-bottom: 1px solid var(--border-subtle); padding-bottom: 10px;">
+        <a href="{{ url_for('history', view='mine') }}" class="pill-link {% if view == 'mine' %}pill-link--active{% endif %}">My Scans</a>
+        <a href="{{ url_for('history', view='all') }}" class="pill-link {% if view == 'all' %}pill-link--active{% endif %}">All Users' Scans</a>
+      </div>
+    {% endif %}
 
     {% if predictions %}
       <div class="table-wrapper">
         <table class="lux-table">
           <thead>
             <tr>
+              <th style="width: 40px; text-align: center;"><input type="checkbox" id="selectAll" style="cursor:pointer; transform: scale(1.15);"></th>
               <th>Date Checked (UTC)</th>
+              {% if view == 'all' %}
+                <th>User</th>
+              {% endif %}
               <th>Journal URL</th>
               <th>Prediction</th>
               <th>Risk</th>
               <th>Confidence</th>
+              <th>Actions</th>
             </tr>
           </thead>
           <tbody>
             {% for pred in predictions %}
-              <tr>
+              <tr data-id="{{ pred.id }}">
+                <td style="text-align: center;"><input type="checkbox" class="select-row" value="{{ pred.id }}" style="cursor:pointer; transform: scale(1.15);"></td>
                 <td>{{ pred.created_at }}</td>
+                {% if view == 'all' %}
+                  <td>
+                    <span class="user-chip" style="padding: 2px 8px;">
+                      <span class="user-name" style="font-size:0.78rem;">{{ pred.username or 'Anonymous' }}</span>
+                    </span>
+                  </td>
+                {% endif %}
                 <td class="cell-url" title="{{ pred.url }}">{{ pred.url }}</td>
                 <td>
                   <span class="pill pill--small {% if pred.label == 'Predatory' %}pill--danger{% else %}pill--success{% endif %}">
@@ -36,15 +70,72 @@
                 </td>
                 <td>{{ '%.0f'|format(pred.risk_score * 100) }}%</td>
                 <td>{{ '%.0f'|format(pred.confidence * 100) }}%</td>
+                <td>
+                  <div style="display:inline-flex; gap:8px; align-items:center;">
+                    <button type="button" class="copy-url-btn btn-ghost btn-ghost--small" data-url="{{ pred.url }}" style="padding: 4px 8px; font-size: 0.72rem; cursor:pointer;" title="Copy URL">Copy</button>
+                    <button type="button" class="delete-row-btn btn-ghost btn-ghost--small" data-id="{{ pred.id }}" style="padding: 4px 8px; font-size: 0.72rem; cursor:pointer; color:var(--danger); border-color:rgba(240, 95, 97, 0.2);" title="Delete Record">Delete</button>
+                  </div>
+                </td>
               </tr>
             {% endfor %}
           </tbody>
         </table>
       </div>
     {% else %}
-      <p class="muted">You haven't run any evaluations yet. Go to the dashboard to scan a website!</p>
+      <p class="muted">
+        {% if view == 'all' %}
+          No journal evaluations have been run in the system yet.
+        {% else %}
+          You haven't run any evaluations yet. Go to the dashboard to scan a website!
+        {% endif %}
+      </p>
     {% endif %}
   </section>
+
+  <!-- Custom Clear History Confirmation Modal -->
+  <div id="clearHistoryModal" class="modal-overlay hidden">
+    <div class="modal-content glass">
+      <h3 class="modal-title">Clear History</h3>
+      <p class="modal-message" id="clearHistoryMsg">Are you sure you want to clear history? This action cannot be undone.</p>
+      <div class="modal-actions">
+        <button id="cancelClearBtn" type="button" class="btn-ghost">Cancel</button>
+        <form id="clearHistoryForm" action="{{ url_for('clear_history') }}" method="post" style="flex:1; display:flex; margin:0;">
+          <input type="hidden" name="scope" id="clearScopeInput" value="user">
+          <button type="submit" class="btn-primary btn-primary--danger" style="width:100%;">Clear All</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Custom Single Row Delete Confirmation Modal -->
+  <div id="singleDeleteModal" class="modal-overlay hidden">
+    <div class="modal-content glass">
+      <h3 class="modal-title">Delete Scan Record</h3>
+      <p class="modal-message">Are you sure you want to delete this scan record? This action cannot be undone.</p>
+      <div class="modal-actions">
+        <button id="cancelSingleDeleteBtn" type="button" class="btn-ghost">Cancel</button>
+        <form id="singleDeleteForm" action="" method="post" style="flex:1; display:flex; margin:0;">
+          <button type="submit" class="btn-primary btn-primary--danger" style="width:100%;">Delete</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Custom Bulk Delete Confirmation Modal -->
+  <div id="bulkDeleteModal" class="modal-overlay hidden">
+    <div class="modal-content glass">
+      <h3 class="modal-title">Delete Selected Scans</h3>
+      <p class="modal-message" id="bulkDeleteMsg">Are you sure you want to delete the selected scan records?</p>
+      <div class="modal-actions">
+        <button id="cancelBulkDeleteBtn" type="button" class="btn-ghost">Cancel</button>
+        <form id="bulkDeleteForm" action="{{ url_for('delete_history_multiple') }}" method="post" style="flex:1; display:flex; margin:0;">
+          <input type="hidden" name="prediction_ids" id="bulkDeleteIdsInput">
+          <input type="hidden" name="view" value="{{ view }}">
+          <button type="submit" class="btn-primary btn-primary--danger" style="width:100%;">Delete Selected</button>
+        </form>
+      </div>
+    </div>
+  </div>
 {% endblock %}
 
 {% block extra_scripts %}

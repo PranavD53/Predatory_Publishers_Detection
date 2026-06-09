@@ -291,7 +291,7 @@ def get_recent_predictions_for_user(user_id: int, limit: int = 25) -> List[Dict[
         rows = query_rows(
             conn,
             """
-            SELECT url, risk_score, label, confidence, created_at
+            SELECT id, url, risk_score, label, confidence, created_at
             FROM predictions
             WHERE user_id = ?
             ORDER BY id DESC
@@ -300,6 +300,37 @@ def get_recent_predictions_for_user(user_id: int, limit: int = 25) -> List[Dict[
             (user_id, limit),
         )
         return [dict(r) for r in rows]
+
+
+def get_all_recent_predictions(limit: int = 200) -> List[Dict[str, Any]]:
+    with get_conn() as conn:
+        rows = query_rows(
+            conn,
+            """
+            SELECT p.id, p.url, p.risk_score, p.label, p.confidence, p.created_at, p.user_id, u.username
+            FROM predictions p
+            LEFT JOIN users u ON p.user_id = u.id
+            ORDER BY p.id DESC
+            LIMIT ?
+            """,
+            (limit,),
+        )
+        return [dict(r) for r in rows]
+
+
+def delete_prediction_by_id(prediction_id: int) -> None:
+    with get_conn() as conn:
+        execute_write(conn, "DELETE FROM predictions WHERE id = ?", (prediction_id,))
+
+
+def clear_predictions_for_user(user_id: int) -> None:
+    with get_conn() as conn:
+        execute_write(conn, "DELETE FROM predictions WHERE user_id = ?", (user_id,))
+
+
+def clear_all_predictions() -> None:
+    with get_conn() as conn:
+        execute_write(conn, "DELETE FROM predictions")
 
 
 def _seed_directory_listings_if_empty(conn: Any) -> None:
@@ -337,3 +368,12 @@ def check_directory_listing(domain: str) -> Optional[Dict[str, Any]]:
             if row:
                 return dict(row)
     return None
+
+
+def delete_predictions_by_ids(ids: List[int]) -> None:
+    if not ids:
+        return
+    # Build list parameters (e.g. (?, ?, ?))
+    placeholders = ",".join(["?"] * len(ids))
+    with get_conn() as conn:
+        execute_write(conn, f"DELETE FROM predictions WHERE id IN ({placeholders})", tuple(ids))

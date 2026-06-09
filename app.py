@@ -6,6 +6,11 @@ from predatory_detector.database import (
     init_db,
     save_prediction,
     get_recent_predictions_for_user,
+    get_all_recent_predictions,
+    delete_prediction_by_id,
+    delete_predictions_by_ids,
+    clear_predictions_for_user,
+    clear_all_predictions,
     verify_user_credentials,
     create_user,
     list_users,
@@ -163,8 +168,105 @@ def create_app() -> Flask:
     @login_required()
     def history():
         user_id = session.get("user_id")
-        predictions = get_recent_predictions_for_user(user_id, limit=100)
-        return render_template("history.html", predictions=predictions)
+        user = get_user_by_id(user_id)
+        is_admin = user and user.get("role") == "admin"
+        
+        # Get query param view ('mine' or 'all')
+        view = request.args.get("view", "mine")
+        if view == "all" and is_admin:
+            predictions = get_all_recent_predictions(limit=200)
+        else:
+            predictions = get_recent_predictions_for_user(user_id, limit=100)
+            view = "mine"
+            
+        return render_template(
+            "history.html",
+            predictions=predictions,
+            view=view,
+            is_admin=is_admin
+        )
+
+    @app.route("/delete-history/<int:pred_id>", methods=["POST"])
+    @login_required()
+    def delete_history_item(pred_id):
+        user_id = session.get("user_id")
+        user = get_user_by_id(user_id)
+        is_admin = user and user.get("role") == "admin"
+        
+        # Check prediction ownership
+        from predatory_detector.database import get_conn, query_row
+        with get_conn() as conn:
+            row = query_row(conn, "SELECT user_id FROM predictions WHERE id = ?", (pred_id,))
+            
+        if not row:
+            return redirect(url_for("history"))
+            
+        pred_user_id = row[0]
+        if pred_user_id != user_id and not is_admin:
+            abort(403)
+            
+        delete_prediction_by_id(pred_id)
+        
+        view = request.args.get("view", "mine")
+        return redirect(url_for("history", view=view))
+
+    @app.route("/clear-history", methods=["POST"])
+    @login_required()
+    def clear_history():
+        user_id = session.get("user_id")
+        user = get_user_by_id(user_id)
+        is_admin = user and user.get("role") == "admin"
+        
+        scope = request.form.get("scope", "user")
+        if scope == "all":
+            if not is_admin:
+                abort(403)
+            clear_all_predictions()
+            return redirect(url_for("history", view="all"))
+        else:
+            clear_predictions_for_user(user_id)
+            return redirect(url_for("history", view="mine"))
+
+    @app.route("/delete-history-multiple", methods=["POST"])
+    @login_required()
+    def delete_history_multiple():
+        user_id = session.get("user_id")
+        user = get_user_by_id(user_id)
+        is_admin = user and user.get("role") == "admin"
+        
+        ids_str = request.form.get("prediction_ids", "")
+        if not ids_str:
+            view = request.form.get("view", "mine")
+            return redirect(url_for("history", view=view))
+            
+        try:
+            pred_ids = [int(x) for x in ids_str.split(",") if x.strip()]
+        except ValueError:
+            abort(400)
+            
+        if not pred_ids:
+            view = request.form.get("view", "mine")
+            return redirect(url_for("history", view=view))
+            
+        # Verify ownership / admin rights for each prediction ID
+        from predatory_detector.database import get_conn, query_rows
+        placeholders = ",".join(["?"] * len(pred_ids))
+        with get_conn() as conn:
+            rows = query_rows(conn, f"SELECT id, user_id FROM predictions WHERE id IN ({placeholders})", tuple(pred_ids))
+            
+        valid_ids = []
+        for row in rows:
+            # row can be indexed by key
+            pid = row["id"]
+            p_uid = row["user_id"]
+            if p_uid == user_id or is_admin:
+                valid_ids.append(pid)
+                
+        if valid_ids:
+            delete_predictions_by_ids(valid_ids)
+            
+        view = request.form.get("view", "mine")
+        return redirect(url_for("history", view=view))
 
     @app.route("/health")
     def health() -> tuple[dict, int]:
