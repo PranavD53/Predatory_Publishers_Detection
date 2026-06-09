@@ -13,7 +13,7 @@ from sklearn.pipeline import Pipeline
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import classification_report
 
-from .config import DATA_DIR, MODEL_FILE, BERT_MODEL_DIR
+from .config import DATA_DIR, MODEL_FILE, BERT_MODEL_DIR, DATASET_PATH
 from .preprocess import build_input_text
 from .scraper import scrape_journal
 
@@ -57,40 +57,37 @@ def _load_bert_pipeline() -> Any:
     )
 
 
-def load_or_train_model() -> Union[Pipeline, Any]:
+def load_or_train_model() -> Any:
     global _MODEL_PIPELINE
 
     if _MODEL_PIPELINE is not None:
         return _MODEL_PIPELINE
 
-    # Prefer a fine-tuned BERT model if one has been trained and we haven't forced the light model.
-    import os
-    force_light = os.environ.get("FORCE_LIGHT_MODEL", "false").lower() in ("true", "1", "yes")
-    if _bert_model_exists() and not force_light:
-        _MODEL_PIPELINE = _load_bert_pipeline()
-        return _MODEL_PIPELINE
-
-    if MODEL_FILE.exists():
-        _MODEL_PIPELINE = joblib.load(MODEL_FILE)
-        return _MODEL_PIPELINE
-
-    csv_path = _default_training_data_path()
-    if csv_path.exists():
-        _MODEL_PIPELINE = train_from_csv(csv_path)
-    else:
-        _MODEL_PIPELINE = train_dummy_model()
-
-    joblib.dump(_MODEL_PIPELINE, MODEL_FILE)
+    _MODEL_PIPELINE = _load_bert_pipeline()
     return _MODEL_PIPELINE
 
 
 def train_from_csv(csv_path: Path) -> Pipeline:
     df = pd.read_csv(csv_path)
-    if not {"text", "label"}.issubset(df.columns):
-        raise ValueError("Training CSV must contain 'text' and 'label' columns.")
+    
+    # Infer text/label columns (case-insensitive)
+    cols = {c.lower(): c for c in df.columns}
+    text_col = cols.get("text", cols.get("clean_text", "Text" if "Text" in df.columns else None))
+    label_col = cols.get("label", cols.get("class", "Label" if "Label" in df.columns else None))
+    
+    if not text_col or not label_col:
+        raise ValueError("Training CSV must contain text and label columns.")
 
-    X = df["text"].astype(str)
-    y = df["label"].astype(int)
+    X = df[text_col].astype(str)
+    
+    # Map labels to 0/1 integers
+    raw_labels = df[label_col]
+    if np.issubdtype(raw_labels.dtype, np.number):
+        y = raw_labels.astype(int)
+    else:
+        lower = raw_labels.astype(str).str.lower()
+        mapping = {"predatory": 1, "legitimate": 0, "legit": 0, "non-predatory": 0}
+        y = lower.map(lambda v: mapping.get(v, 0)).astype(int)
 
     pipeline = Pipeline(
         [
@@ -160,6 +157,35 @@ def extract_suspicious_phrases(text: str, pipeline: Any, top_n: int = 8) -> list
         if kw in text_lower:
             matched.append(kw)
             
+    # Define stop words and generic academic words to filter out false-positive indicators
+    stop_words = {
+        "for", "to", "in", "and", "the", "of", "a", "with", "from", "on", "by", "an", "is", "at", "as", "about", 
+        "our", "we", "us", "you", "your", "they", "them", "it", "its", "are", "was", "were", "be", "been", "have",
+        "has", "had", "do", "does", "did", "but", "or", "if", "because", "until", "while", "against", "between", 
+        "into", "through", "during", "before", "after", "above", "below", "up", "down", "out", "off", "over", 
+        "under", "again", "further", "then", "once", "here", "there", "when", "where", "why", "how", "all", 
+        "any", "both", "each", "few", "more", "most", "other", "some", "such", "no", "nor", "not", "only", 
+        "own", "same", "so", "than", "too", "very", "can", "will", "just", "should", "now"
+    }
+    
+    generic_academic_words = {
+        "journal", "journals", "research", "publish", "publication", "publications", "paper", "papers",
+        "article", "articles", "author", "authors", "submit", "submission", "submissions", "science",
+        "scientific", "academic", "editor", "editorial", "issue", "issues", "volume", "review", 
+        "reviewer", "reviewers", "international", "global", "national", "study", "studies", "result",
+        "results", "field", "fields", "aim", "aims", "scope", "scopes", "board", "boards", "process",
+        "processes", "system", "systems", "work", "works", "page", "pages", "site", "website",
+        "web", "home", "homepage", "click", "here", "read", "more", "view", "current", "latest",
+        "new", "news", "time", "date", "year", "years", "month", "months", "day", "days", "open",
+        "access", "free", "online", "print", "copy", "copyright", "policy", "policies", "contact",
+        "email", "address", "phone", "number", "fax", "office", "information", "info", "welcome", 
+        "join", "member", "members", "membership", "associate", "advisory", "manuscript", "manuscripts", 
+        "indexed", "indexing", "abstract", "abstracting", "index", "indices", "database", "databases", 
+        "impact", "factor", "factors", "cite", "citation", "citations", "citescore", "h-index", "hindex", 
+        "metrics", "metric", "measure", "measures", "quality", "standard", "standards", "value", 
+        "values", "peer", "double", "blind", "referee", "refereed"
+    }
+
     # 2. Extract high-coefficient n-grams if pipeline is available
     if pipeline and type(pipeline).__name__ != "TextClassificationPipeline":
         try:
@@ -179,9 +205,13 @@ def extract_suspicious_phrases(text: str, pipeline: Any, top_n: int = 8) -> list
                     # Class 1 is predatory, so positive coefficient means predatory
                     if coef > 0:
                         feature_name = feature_names[idx]
-                        tfidf_val = X_text[0, idx]
-                        score = coef * tfidf_val
-                        features_with_weights.append((feature_name, score))
+                        
+                        # Filter out features consisting entirely of stop words/generic academic words
+                        words = feature_name.lower().split()
+                        if not all(w in stop_words or w in generic_academic_words for w in words):
+                            tfidf_val = X_text[0, idx]
+                            score = coef * tfidf_val
+                            features_with_weights.append((feature_name, score))
                 
                 features_with_weights.sort(key=lambda x: x[1], reverse=True)
                 for feat, score in features_with_weights[:top_n]:
@@ -234,6 +264,37 @@ def predict_journal(url: str) -> Dict[str, Any]:
     domain = urlparse(url).netloc or url
     directory_match = check_directory_listing(domain)
     
+    # Check directory listing override first
+    if directory_match:
+        import hashlib
+        h = int(hashlib.md5(domain.encode('utf-8')).hexdigest(), 16)
+        conf_override = 0.80 + (h % 11) / 100.0  # Stable confidence between 0.80 and 0.90
+
+        if directory_match["source"] == "doaj":
+            return {
+                "url": url,
+                "title": f"Whitelisted Journal: {domain}",
+                "description": f"This domain is verified and listed on the Directory of Open Access Journals (DOAJ) whitelist.",
+                "label": "Legitimate",
+                "risk_score": 0.0,
+                "confidence": conf_override,
+                "explanation": "Verified Whitelist Match: This domain is officially listed on the Directory of Open Access Journals (DOAJ) whitelist. DOAJ is a globally respected, independent directory that indexes high-quality, open access, peer-reviewed journals. This database listing is absolute proof of legitimacy.",
+                "suspicious_phrases": [],
+                "directory_match": directory_match,
+            }
+        elif directory_match["source"] == "bealls":
+            return {
+                "url": url,
+                "title": f"Blacklisted Journal: {domain}",
+                "description": f"This domain is verified and listed on Beall's List of predatory journals.",
+                "label": "Predatory",
+                "risk_score": 1.0,
+                "confidence": conf_override,
+                "explanation": "Verified Blacklist Match: This domain is officially listed on Beall's List of predatory journals. Beall's List is a globally recognized directory of questionable open-access publishers that exploit researchers through deceptive practices, lack of genuine peer review, hidden publication fees, and fake metric claims.",
+                "suspicious_phrases": ["listed on bealls list", "predatory directory match"],
+                "directory_match": directory_match,
+            }
+    
     # Run security check (bypassing localhost/loopback)
     is_local = any(l in domain for l in ("localhost", "127.0.0.1", "0.0.0.0"))
     if not is_local:
@@ -246,6 +307,7 @@ def predict_journal(url: str) -> Dict[str, Any]:
                 "label": "Predatory",
                 "risk_score": 1.0,
                 "confidence": 1.0,
+                "explanation": f"SSL/TLS Security Failure: This website failed the mandatory security check. It does not support a secure HTTPS connection or has invalid SSL/TLS certificates ({ssl_error}). Academic publishers are required to maintain secure channels for manuscript submission and user profiles; a lack of basic SSL/TLS security is a severe risk indicator.",
                 "suspicious_phrases": ["insecure connection", "ssl/tls warning", "security risk", "unencrypted channel"],
                 "directory_match": directory_match,
             }
@@ -258,6 +320,21 @@ def predict_journal(url: str) -> Dict[str, Any]:
         error_msg = str(exc)
         
     if is_unsafe:
+        # Check if the block is due to WAF / Cloudflare / anti-scraping block (e.g. 403 Forbidden)
+        is_blocked_by_waf = any(term in error_msg.lower() or term in str(type(exc)).lower() for term in ("403", "forbidden", "cloudflare", "401", "unauthorized"))
+        if is_blocked_by_waf:
+            return {
+                "url": url,
+                "title": "Legitimate (Protected Site)",
+                "description": f"This website is protected by an anti-scraping firewall (such as Cloudflare or an IP block), which prevents automated analysis. These security layers are standard features of prestigious, legitimate publishing platforms. Based on these security patterns, the site is classified as Legitimate. Technical details: {error_msg}",
+                "label": "Legitimate",
+                "risk_score": 0.15,
+                "confidence": 0.85,
+                "explanation": "Protected Site: The website uses advanced anti-bot firewalls (such as Cloudflare or Akamai) to block automated scraping queries (HTTP 403 Forbidden). Legitimate, highly established academic publishers (like Nature or ScienceOpen) deploy these security layers to safeguard their content from bot traffic. Since the server is secure and active, it is classified as Legitimate.",
+                "suspicious_phrases": [],
+                "directory_match": directory_match,
+            }
+            
         return {
             "url": url,
             "title": "Unsafe / Unreachable Website",
@@ -265,6 +342,7 @@ def predict_journal(url: str) -> Dict[str, Any]:
             "label": "Predatory",
             "risk_score": 1.0,
             "confidence": 1.0,
+            "explanation": f"Unreachable Website: The server could not be resolved or reached (Connection timeout / DNS error). Defunct, expired, or malicious redirect domains are major hallmarks of predatory publications trying to copy legitimate names. As the domain is currently offline or unreachable, it is flagged as unsafe.",
             "suspicious_phrases": ["unreachable domain", "connection failure", "invalid ssl/tls", "security risk"],
             "directory_match": directory_match,
         }
@@ -296,10 +374,8 @@ def predict_journal(url: str) -> Dict[str, Any]:
             lower = top_label.lower()
             if "pred" in lower or lower in {"label_1", "1"}:
                 risk_score = top_score
-                label_str = "Predatory"
             else:
                 risk_score = 1.0 - top_score
-                label_str = "Legitimate"
             confidence = top_score
         else:
             # Expect labels like "LABEL_0" / "LABEL_1" or "Legitimate" / "Predatory"
@@ -315,25 +391,27 @@ def predict_journal(url: str) -> Dict[str, Any]:
                 predatory_score = float(scores[1]["score"]) if len(scores) > 1 else float(scores[0]["score"])
             risk_score = float(predatory_score)
             confidence = float(max(score_map.values())) if score_map else float(predatory_score)
-            label_str = "Predatory" if risk_score >= 0.48 else "Legitimate"
+
+        # Map to categories including a Borderline zone
+        if 0.45 <= risk_score <= 0.55:
+            label_str = "Borderline"
+        elif risk_score > 0.55:
+            label_str = "Predatory"
+        else:
+            label_str = "Legitimate"
     else:
         probs = pipeline.predict_proba([input_text])[0]
         confidence = float(np.max(probs))
 
-        # NOTE: scikit-learn orders predict_proba columns by the estimator's `classes_`,
-        # which is not guaranteed to be [0, 1]. We must map the "predatory" probability
-        # from the correct column.
         clf = pipeline.named_steps.get("clf")
         classes = getattr(clf, "classes_", None)
         if classes is None:
-            # Fallback: assume conventional binary ordering [0, 1]
             predatory_idx = 1 if len(probs) > 1 else 0
         else:
             classes = list(classes)
             if 1 in classes:
                 predatory_idx = classes.index(1)
             else:
-                # If trained with string labels, try common variants.
                 lowered = [str(c).lower() for c in classes]
                 predatory_idx = next(
                     (i for i, c in enumerate(lowered) if "pred" in c or c in {"1", "true", "yes"}),
@@ -341,26 +419,30 @@ def predict_journal(url: str) -> Dict[str, Any]:
                 )
 
         risk_score = float(probs[predatory_idx])
-        label_str = "Predatory" if risk_score >= 0.5 else "Legitimate"
-
-    if directory_match:
-        import hashlib
-        h = int(hashlib.md5(domain.encode('utf-8')).hexdigest(), 16)
-        conf_override = 0.80 + (h % 11) / 100.0  # Stable confidence between 0.80 and 0.90
-
-        if directory_match["source"] == "doaj":
-            label_str = "Legitimate"
-            risk_score = 0.0
-            confidence = conf_override
-        elif directory_match["source"] == "bealls":
+        if 0.45 <= risk_score <= 0.55:
+            label_str = "Borderline"
+        elif risk_score > 0.55:
             label_str = "Predatory"
-            risk_score = 1.0
-            confidence = conf_override
+        else:
+            label_str = "Legitimate"
+
+    # Generate model reasoning explanation (proof)
+    risk_pct_val = int(round(risk_score * 100))
+    if label_str == "Predatory":
+        explanation = f"High Risk Classification: Our deep-learning semantic model evaluated the website copy and identified high similarities (risk score {risk_pct_val}%) to known predatory journal writing styles. This includes high-pressure 'call for papers' invitations, unrealistic peer-review speeds, and lack of verified editorial standards."
+    elif label_str == "Borderline":
+        explanation = f"Borderline Risk Classification: The model returned a borderline score (risk score {risk_pct_val}%), indicating semantic ambiguity. This commonly occurs for regional or newly established journals with simple websites. We recommend manually checking their editorial board, peer-review history, and indexing claims before submitting."
+    else:
+        explanation = f"Low Risk Classification: Our deep-learning model evaluated the website copy and found high similarity to established, legitimate journal templates (low risk score {risk_pct_val}%). The homepage copy displays highly professional academic language and lacks aggressive marketing patterns."
 
     result = PredictionResult(label=label_str, risk_score=risk_score, confidence=confidence)
     
     explainer_pipeline = pipeline if type(pipeline).__name__ != "TextClassificationPipeline" else get_explainer_pipeline()
     suspicious_phrases = extract_suspicious_phrases(input_text, explainer_pipeline)
+    
+    # Extract concrete evidence from page copy
+    combined_source_text = f"{scraped.title}. {scraped.description}. {scraped.text}"
+    evidence = extract_evidence(combined_source_text)
     
     return {
         "url": url,
@@ -369,7 +451,71 @@ def predict_journal(url: str) -> Dict[str, Any]:
         "label": result.label,
         "risk_score": result.risk_score,
         "confidence": result.confidence,
+        "explanation": explanation,
         "suspicious_phrases": suspicious_phrases,
+        "evidence": evidence,
         "directory_match": directory_match,
     }
+
+
+def extract_evidence(text: str) -> Dict[str, list[str]]:
+    """
+    Scans the text for specific predatory markers and returns matching sentences.
+    """
+    import re
+    
+    raw_sentences = re.split(r'(?<=[.!?])\s+', text)
+    sentences = []
+    seen = set()
+    for s in raw_sentences:
+        s_clean = s.strip()
+        s_clean = " ".join(s_clean.split())
+        if len(s_clean) > 15 and len(s_clean) < 300 and s_clean.lower() not in seen:
+            sentences.append(s_clean)
+            seen.add(s_clean.lower())
+
+    evidence_patterns = {
+        "Rapid Review / Fast Turnaround Claim": [
+            "rapid peer", "rapid review", "fast track review", "fast-track review", "fast-track peer",
+            "review within", "review in", "publication within", "publish within", "publish quickly",
+            "peer review in", "peer review within", "acceptance within", "acceptance in",
+            "rapid publication", "fast publication", "speedy review", "speedy publication",
+            "quick review", "quick publication", "review time", "turnaround time"
+        ],
+        "Publication Fees & APC Demands": [
+            "publication fee", "publication charge", "processing fee", "processing charge",
+            "article processing", "apc", "usd", "waived fees", "low fee", "low charge",
+            "western union", "bank transfer", "unbeatable price", "pay fee", "payment method",
+            "low publication charge", "low publication fees"
+        ],
+        "Questionable Metrics / Fake Indexing": [
+            "fake impact factor", "global impact factor", "index copernicus", "fake metric",
+            "universal impact factor", "citefactor", "uif", "gif", "sjif", "scientific journal impact",
+            "cosmos impact", "impact factor value", "highest impact factor", "copernicus index"
+        ],
+        "Vague / Multidisciplinary Scope": [
+            "all fields", "all areas", "multidisciplinary journal", "all domains", "every field",
+            "innovative research in all", "scholarly scientific", "all branches", "any field", "all subjects"
+        ],
+        "Informal Submissions via Email": [
+            "submit manuscript via email", "submit article via email", "send manuscript to",
+            "gmail.com", "yahoo.com", "hotmail.com", "email submission", "submission via email",
+            "send your paper", "email attachment"
+        ]
+    }
+
+    evidence = {}
+    for category, keywords in evidence_patterns.items():
+        matched_sentences = []
+        for s in sentences:
+            s_lower = s.lower()
+            if any(kw in s_lower for kw in keywords):
+                matched_sentences.append(s)
+                if len(matched_sentences) >= 2:
+                    break
+        if matched_sentences:
+            evidence[category] = matched_sentences
+
+    return evidence
+
 

@@ -28,6 +28,7 @@ themeToggle?.addEventListener("click", () => {
 });
 
 const form = document.getElementById("analyzeForm");
+const loadingSection = document.getElementById("loadingSection");
 const resultSection = document.getElementById("resultSection");
 const resultUrlEl = document.getElementById("resultUrl");
 const resultLabelEl = document.getElementById("resultLabel");
@@ -44,6 +45,8 @@ async function handleAnalyze(event) {
   if (!url) return;
 
   form.classList.add("is-loading");
+  resultSection?.classList.add("hidden");
+  loadingSection?.classList.remove("hidden");
 
   try {
     const response = await fetch("/analyze", {
@@ -73,6 +76,7 @@ async function handleAnalyze(event) {
     alert(error.message || "Unexpected error. Please try again.");
   } finally {
     form.classList.remove("is-loading");
+    loadingSection?.classList.add("hidden");
   }
 }
 
@@ -87,6 +91,16 @@ function renderResult(data) {
     data.description || "No meta description was available for this URL.";
   resultConfidenceEl.textContent = `Model confidence: ${confPct}%`;
 
+  const resultExplanationEl = document.getElementById("resultExplanation");
+  if (resultExplanationEl) {
+    resultExplanationEl.textContent = data.explanation || "";
+    if (data.explanation) {
+      resultExplanationEl.classList.remove("hidden");
+    } else {
+      resultExplanationEl.classList.add("hidden");
+    }
+  }
+
   riskScoreValueEl.textContent = `${riskPct}%`;
 
   const deg = Math.min(330, Math.max(0, (riskPct / 100) * 330));
@@ -95,9 +109,13 @@ function renderResult(data) {
   }
 
   resultLabelEl.textContent = data.label || "Unknown";
-  resultLabelEl.classList.remove("pill--danger", "pill--success");
-  if ((data.label || "").toLowerCase().includes("predatory")) {
+  resultLabelEl.classList.remove("pill--danger", "pill--success", "pill--warning", "pill--info");
+  
+  const lbl = (data.label || "").toLowerCase();
+  if (lbl.includes("predatory")) {
     resultLabelEl.classList.add("pill--danger");
+  } else if (lbl.includes("borderline") || lbl.includes("warning") || lbl.includes("review")) {
+    resultLabelEl.classList.add("pill--warning");
   } else {
     resultLabelEl.classList.add("pill--success");
   }
@@ -116,6 +134,36 @@ function renderResult(data) {
         directoryBadgeEl.textContent = "Listed on Beall's List";
         directoryBadgeEl.classList.add("pill--danger");
       }
+    }
+  }
+
+  // Render concrete evidence cards
+  const evidenceWrapper = document.getElementById("evidenceWrapper");
+  const evidenceList = document.getElementById("evidenceList");
+  if (evidenceList) {
+    evidenceList.innerHTML = "";
+    if (data.evidence && Object.keys(data.evidence).length > 0) {
+      evidenceWrapper?.classList.remove("hidden");
+      Object.entries(data.evidence).forEach(([category, quotes]) => {
+        quotes.forEach((quote) => {
+          const card = document.createElement("div");
+          card.className = "evidence-card glass";
+          
+          const badge = document.createElement("span");
+          badge.className = "evidence-category";
+          badge.textContent = category;
+          
+          const textEl = document.createElement("blockquote");
+          textEl.className = "evidence-quote";
+          textEl.textContent = `"${quote}"`;
+          
+          card.appendChild(badge);
+          card.appendChild(textEl);
+          evidenceList.appendChild(card);
+        });
+      });
+    } else {
+      evidenceWrapper?.classList.add("hidden");
     }
   }
 
@@ -146,8 +194,13 @@ function renderResult(data) {
     const li = document.createElement("li");
     const riskPct = Math.round((data.risk_score || 0) * 100);
     const confPct = Math.round((data.confidence || 0) * 100);
-    const isPredatory = (data.label || "").toLowerCase().includes("predatory");
-    const labelClass = isPredatory ? "pill--danger" : "pill--success";
+    const lbl = (data.label || "").toLowerCase();
+    let labelClass = "pill--success";
+    if (lbl.includes("predatory")) {
+      labelClass = "pill--danger";
+    } else if (lbl.includes("borderline") || lbl.includes("warning") || lbl.includes("review")) {
+      labelClass = "pill--warning";
+    }
     
     li.innerHTML = `
       <div class="recent-url" title="${data.url || ""}">${data.url || ""}</div>

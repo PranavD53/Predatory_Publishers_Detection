@@ -43,41 +43,44 @@
       </form>
     </div>
     <div class="hero-side">
-      <div class="metric-card glass subtle-border">
-        <div class="metric-label">Model</div>
-        <div class="metric-value">BERT</div>
-        <p class="metric-note">Ready for upgrade with even richer datasets.</p>
-      </div>
-      {% if current_user %}
-        <div class="recent-card glass subtle-border">
-          <div class="recent-header">
-            <h3>Recent checks</h3>
-          </div>
-          <ul class="recent-list" id="recentList">
-            {% if recent_predictions %}
-              {% for row in recent_predictions %}
-                <li>
-                  <div class="recent-url" title="{{ row.url }}">{{ row.url }}</div>
-                  <div class="recent-meta">
-                    <span class="pill pill--small {% if row.label == 'Predatory' %}pill--danger{% else %}pill--success{% endif %}">
-                      {{ row.label }}
-                    </span>
-                    <span class="recent-score">
-                      Risk: {{ '%.0f'|format(row.risk_score * 100) }}% ·
-                      Conf: {{ '%.0f'|format(row.confidence * 100) }}%
-                    </span>
-                  </div>
-                </li>
-              {% endfor %}
-            {% else %}
-              <li class="muted" id="recentListPlaceholder">No recent checks yet.</li>
-            {% endif %}
-          </ul>
-          <div class="recent-footer" style="margin-top: 10px; text-align: center;">
-            <a href="{{ url_for('history') }}" class="pill-link pill-link--ghost" style="font-size: 0.76rem; padding: 4px 10px;">View Full History</a>
-          </div>
+      <div class="recent-card glass subtle-border">
+        <div class="recent-header">
+          <h3>Recent checks</h3>
         </div>
-      {% endif %}
+        <ul class="recent-list" id="recentList">
+          {% if recent_predictions %}
+            {% for row in recent_predictions %}
+              <li>
+                <div class="recent-url" title="{{ row.url }}">{{ row.url }}</div>
+                <div class="recent-meta">
+                  <span class="pill pill--small {% if row.label == 'Predatory' %}pill--danger{% elif row.label == 'Borderline' %}pill--warning{% else %}pill--success{% endif %}">
+                    {{ row.label }}
+                  </span>
+                  <span class="recent-score">
+                    Risk: {{ '%.0f'|format(row.risk_score * 100) }}% ·
+                    Conf: {{ '%.0f'|format(row.confidence * 100) }}%
+                  </span>
+                </div>
+              </li>
+            {% endfor %}
+          {% else %}
+            <li class="muted" id="recentListPlaceholder">No recent checks yet.</li>
+          {% endif %}
+        </ul>
+        <div class="recent-footer" style="margin-top: 10px; text-align: center;">
+          <a href="{{ url_for('history') }}" class="pill-link pill-link--ghost" style="font-size: 0.76rem; padding: 4px 10px;">View Full History</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="loadingSection" class="loading-section hidden glass">
+    <div class="loader-container">
+      <div class="loader-spinner"></div>
+      <div class="loader-status">
+        <h3>Analyzing Journal...</h3>
+        <p class="loader-subtext">Retrieving homepage metadata and evaluating risk parameters.</p>
+      </div>
     </div>
   </section>
 
@@ -106,6 +109,11 @@
         <p id="resultTitle" class="result-title"></p>
         <p id="resultDescription" class="result-description"></p>
         <p id="resultConfidence" class="result-confidence"></p>
+        <p id="resultExplanation" class="result-explanation" style="margin-top: 14px; font-size: 0.92rem; line-height: 1.55; color: var(--text); padding-left: 12px; border-left: 2px solid var(--accent);"></p>
+        <div id="evidenceWrapper" class="evidence-wrapper hidden" style="margin-top: 20px;">
+          <span class="suspicious-phrases-title" style="margin-bottom: 10px; display: block;">🔬 Evidence Found on Website</span>
+          <div id="evidenceList" class="evidence-list" style="display: flex; flex-direction: column; gap: 10px;"></div>
+        </div>
         <div id="suspiciousPhrasesWrapper" class="suspicious-phrases-wrapper hidden">
           <span class="suspicious-phrases-title">Suspicious Indicators Found</span>
           <div id="suspiciousPhrasesList" class="suspicious-phrases-list"></div>

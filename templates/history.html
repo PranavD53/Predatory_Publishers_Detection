@@ -64,7 +64,7 @@
                 {% endif %}
                 <td class="cell-url" title="{{ pred.url }}">{{ pred.url }}</td>
                 <td>
-                  <span class="pill pill--small {% if pred.label == 'Predatory' %}pill--danger{% else %}pill--success{% endif %}">
+                  <span class="pill pill--small {% if pred.label == 'Predatory' %}pill--danger{% elif pred.label == 'Borderline' %}pill--warning{% else %}pill--success{% endif %}">
                     {{ pred.label }}
                   </span>
                 </td>

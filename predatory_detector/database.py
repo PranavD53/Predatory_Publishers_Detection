@@ -19,6 +19,20 @@ if DATABASE_URL and (DATABASE_URL.startswith("postgres://") or DATABASE_URL.star
         DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
 
 
+_POSTGRES_POOL = None
+
+def get_pool():
+    global _POSTGRES_POOL
+    if _POSTGRES_POOL is None and USE_POSTGRES:
+        try:
+            from psycopg2.pool import ThreadedConnectionPool
+            # Keep between 2 and 20 connections open in the pool
+            _POSTGRES_POOL = ThreadedConnectionPool(2, 20, dsn=DATABASE_URL)
+        except Exception:
+            pass
+    return _POSTGRES_POOL
+
+
 @contextmanager
 def get_conn():
     if USE_POSTGRES:
@@ -29,15 +43,28 @@ def get_conn():
                 "PostgreSQL support requires 'psycopg2' or 'psycopg2-binary' packages.\n"
                 "Please run: pip install psycopg2-binary"
             )
-        conn = psycopg2.connect(DATABASE_URL)
-        try:
-            yield conn
-            conn.commit()
-        except Exception:
-            conn.rollback()
-            raise
-        finally:
-            conn.close()
+        
+        pool = get_pool()
+        if pool:
+            conn = pool.getconn()
+            try:
+                yield conn
+                conn.commit()
+            except Exception:
+                conn.rollback()
+                raise
+            finally:
+                pool.putconn(conn)
+        else:
+            conn = psycopg2.connect(DATABASE_URL)
+            try:
+                yield conn
+                conn.commit()
+            except Exception:
+                conn.rollback()
+                raise
+            finally:
+                conn.close()
     else:
         conn = sqlite3.connect(DB_PATH)
         conn.row_factory = sqlite3.Row
