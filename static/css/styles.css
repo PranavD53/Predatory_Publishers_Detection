@@ -91,14 +91,9 @@ body {
   width: 38px;
   height: 38px;
   border-radius: 999px;
-  background: radial-gradient(circle at 20% 0, var(--accent-strong), var(--accent));
-  color: #05060a;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 600;
-  letter-spacing: 0.06em;
+  object-fit: cover;
   box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.35), 0 18px 38px rgba(0, 0, 0, 0.65);
+  display: block;
 }
 
 .brand-copy h1 {
@@ -187,6 +182,11 @@ body {
   transform: translateX(0);
 }
 
+.theme-toggle--dark .theme-toggle-thumb::before {
+  content: "☾";
+  transform: rotate(0deg);
+}
+
 .theme-toggle--dark .theme-toggle-icon--moon {
   opacity: 1;
 }
@@ -199,12 +199,29 @@ body {
   transform: translateX(30px);
 }
 
+.theme-toggle--light .theme-toggle-thumb::before {
+  content: "☼";
+  transform: rotate(360deg);
+}
+
 .theme-toggle--light .theme-toggle-icon--moon {
-  opacity: 0.3;
+  color: var(--text-muted);
+  opacity: 0.5;
 }
 
 .theme-toggle--light .theme-toggle-icon--sun {
   opacity: 1;
+}
+
+.theme-toggle-thumb::before {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #161213;
+  transition: transform 0.25s ease, opacity 0.15s ease;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .pill-link {

@@ -1,5 +1,5 @@
 """
-Core package for the Predatory Publishers Detector application.
+Core package for the PreDPub application.
 
 This package contains:
 - Web scraping utilities

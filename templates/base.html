@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Predatory Publishers Detector</title>
+    <title>PreDPub</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -16,9 +16,9 @@
     <div class="app-shell">
       <header class="app-header glass">
         <a href="{{ url_for('index') }}" class="brand brand-link">
-          <div class="brand-mark">PP</div>
+          <img src="{{ url_for('static', filename='images/logo.png') }}" class="brand-mark" alt="PreDPub Logo" />
           <div class="brand-copy">
-            <h1>Predatory Publishers Detector</h1>
+            <h1>PreDPub</h1>
             <p>Risk intelligence for research journals</p>
           </div>
         </a>

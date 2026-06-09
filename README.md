@@ -1,4 +1,4 @@
-# 🕵️‍♂️ Predatory Publishers Detector
+# 🕵️‍♂️ PreDPub
 
 > Risk intelligence for research journals. Evaluate any academic journal website in seconds to check if it exhibits signs of predatory publishing.
 
@@ -6,7 +6,7 @@
 
 ## 🌟 Overview
 
-The **Predatory Publishers Detector** is a premium, web-based tool designed to help researchers, librarians, and supervisors quickly evaluate the legitimacy of academic journals. 
+**PreDPub** is a premium, web-based tool designed to help researchers, librarians, and supervisors quickly evaluate the legitimacy of academic journals. 
 
 By simply analyzing a journal's public website, the system scrapes its homepage, cleans the content, and runs it through a machine-learning pipeline to estimate its predatory risk score.
 
