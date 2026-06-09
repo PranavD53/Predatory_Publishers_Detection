@@ -100,7 +100,7 @@ body {
   font-family: "Playfair Display", "Times New Roman", serif;
   font-size: 1.4rem;
   letter-spacing: 0.08em;
-  text-transform: uppercase;
+  /* text-transform: uppercase; */
   margin: 0;
 }
 
