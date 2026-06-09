@@ -46,8 +46,8 @@
               <a href="{{ url_for('admin_dashboard') }}" class="pill-link">Admin</a>
             {% endif %}
             <a href="{{ url_for('logout') }}" class="pill-link pill-link--soft">Logout</a>
-            <form action="{{ url_for('delete_account') }}" method="post" style="display:inline;" onsubmit="return confirm('Are you sure you want to permanently delete your account? This will erase all your past checks.');">
-              <button type="submit" class="pill-link pill-link--danger" style="cursor:pointer;">Delete</button>
+            <form id="deleteAccountForm" action="{{ url_for('delete_account') }}" method="post" style="display:inline;">
+              <button type="button" id="deleteAccountBtn" class="pill-link pill-link--danger" style="cursor:pointer;">Delete</button>
             </form>
           {% else %}
             <a href="{{ url_for('login') }}" class="pill-link">Login</a>
@@ -65,6 +65,20 @@
         <p>Built for researchers who demand clarity and elegance.</p>
       </footer>
     </div>
+
+    {% if current_user %}
+    <!-- Custom Account Deletion Modal -->
+    <div id="deleteModal" class="modal-overlay hidden">
+      <div class="modal-content glass">
+        <h3 class="modal-title">Delete Account</h3>
+        <p class="modal-message">Are you sure you want to permanently delete your account? This will erase all your past checks.</p>
+        <div class="modal-actions">
+          <button id="cancelDeleteBtn" type="button" class="btn-ghost">Cancel</button>
+          <button id="confirmDeleteBtn" type="button" class="btn-primary btn-primary--danger">Delete</button>
+        </div>
+      </div>
+    </div>
+    {% endif %}
 
     <script src="{{ url_for('static', filename='js/main.js') }}"></script>
     {% block extra_scripts %}{% endblock %}

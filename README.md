@@ -131,3 +131,32 @@ CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--workers", "2", "app:create_app()"]
 ## ⚠️ Disclaimer
 - The detector does not access paywalled or login-protected pages.
 - It provides a **risk assessment** based on website copy similarities to known predatory journals and should not be used as the single deciding factor for publication decisions. Always pair its reports with institutional guidance.
+
+---
+
+## 🚀 Version 2.0 Specifications & Updates
+
+The application has been upgraded to **Version 2.0**, introducing advanced multi-laptop database synchronization, custom UI components, expanded standard directories, and enhanced user workflows:
+
+### 1. 🗄️ Multi-Device Synchronization & Remote Database Support
+* **Supabase / PostgreSQL Integration**: Seamlessly switches between a local SQLite database and a remote PostgreSQL database (like Supabase).
+* **Auto Environment Loader**: Automatically detects a `.env` file in the project root to load configuration variables (e.g., `DATABASE_URL`) without external package requirements.
+* **Transparent Query Translators**: Features built-in parameters and row translators inside `database.py` that map SQL variables (`?` vs `%s`) and row cursor factories dynamically between SQLite and PostgreSQL databases.
+
+### 2. 🗂️ Expanded Whitelist & Blacklist Directory
+* **Expanded Seeds (700+ entries)**: Automatically seeds **350 whitelisted DOAJ journals** (retrieved dynamically using paginated DOAJ API requests) and **350 blacklisted Beall's List journals** (retrieved from stop-predatory-journals CSV mirrors).
+* **Deterministic Override Confidence (80%–90%)**: Matches against directories automatically override ML predictions. To keep scores realistic, directory overrides are assigned a deterministic, stable confidence score between **80% and 90%** (calculated via a domain MD5 hash) rather than a raw 100% value.
+
+### 3. 🎨 Custom Glassmorphism Modals
+* **Theme-Aware Pop-ups**: Replaced browser-native `confirm()` account deletion alerts with custom-styled modals that follow the glassmorphic dark/light themes.
+* **Transitions**: Integrated smooth slide-in keyframe animations, blurred backdrop overlays (`backdrop-filter`), and responsive overlay cancel options.
+
+### 4. 🔒 User-Specific History & CSV Export
+* **Isolated Log Pages**: Added a dedicated `/history` endpoint that restricts history visibility to each user's unique checks.
+* **Data Portability**: Users can export and download their complete historical scan results locally as a standardized CSV file.
+* **Real-time Prepending**: New searches immediately prepend to the dashboard list using asynchronous JavaScript, avoiding full page refreshes.
+
+### 👑 5. Instagram-Style Admin Approvals
+* **Access Requests**: Standard users can request admin permissions from a dashboard banner. Status displays dynamically as `Pending ⏳`, `Approved ✅`, or `Declined ❌`.
+* **Admin Controls**: Admins receive pending requests in the Admin Panel and can approve, reject, or revoke credentials instantly.
+

@@ -203,3 +203,45 @@ function attachEnterToForm(formId) {
 attachEnterToForm("loginForm");
 attachEnterToForm("signupForm");
 
+// Custom Delete Account Modal Event Handlers
+document.addEventListener("DOMContentLoaded", () => {
+  const deleteAccountBtn = document.getElementById("deleteAccountBtn");
+  const deleteModal = document.getElementById("deleteModal");
+  const cancelDeleteBtn = document.getElementById("cancelDeleteBtn");
+  const confirmDeleteBtn = document.getElementById("confirmDeleteBtn");
+  const deleteAccountForm = document.getElementById("deleteAccountForm");
+
+  if (deleteAccountBtn && deleteModal && cancelDeleteBtn && confirmDeleteBtn && deleteAccountForm) {
+    deleteAccountBtn.addEventListener("click", (e) => {
+      e.preventDefault();
+      deleteModal.classList.remove("hidden");
+      // Trigger browser reflow to enable CSS transition
+      deleteModal.offsetHeight;
+      deleteModal.classList.add("active");
+    });
+
+    const closeModal = () => {
+      deleteModal.classList.remove("active");
+      setTimeout(() => {
+        if (!deleteModal.classList.contains("active")) {
+          deleteModal.classList.add("hidden");
+        }
+      }, 220); // Sync with CSS transition duration
+    };
+
+    cancelDeleteBtn.addEventListener("click", closeModal);
+
+    // Dismiss modal if user clicks on the dimmed backdrop overlay itself
+    deleteModal.addEventListener("click", (e) => {
+      if (e.target === deleteModal) {
+        closeModal();
+      }
+    });
+
+    confirmDeleteBtn.addEventListener("click", () => {
+      deleteAccountForm.submit();
+    });
+  }
+});
+
+

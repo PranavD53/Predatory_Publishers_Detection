@@ -962,3 +962,90 @@ body {
   color: #fff !important;
 }
 
+/* Custom Delete Modal */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  backdrop-filter: blur(8px);
+  padding: 20px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.modal-overlay.active {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.modal-overlay.hidden {
+  display: none !important;
+}
+
+.modal-content {
+  max-width: 440px;
+  width: 100%;
+  padding: 28px;
+  border-radius: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  text-align: center;
+  transform: translateY(12px) scale(0.96);
+  opacity: 0;
+  transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.modal-overlay.active .modal-content {
+  transform: translateY(0) scale(1);
+  opacity: 1;
+}
+
+.modal-title {
+  font-family: "Playfair Display", "Times New Roman", serif;
+  font-size: 1.5rem;
+  margin: 0;
+  color: var(--danger);
+  letter-spacing: 0.04em;
+}
+
+.modal-message {
+  font-size: 0.95rem;
+  line-height: 1.5;
+  color: var(--text-muted);
+  margin: 0;
+}
+
+.modal-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.modal-actions .btn-ghost,
+.modal-actions .btn-primary {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  height: 42px;
+}
+
+/* Danger variant for primary buttons */
+.btn-primary--danger {
+  background: linear-gradient(135deg, var(--danger), #c93b3d) !important;
+  color: #fff !important;
+}
+
+.btn-primary--danger:hover {
+  filter: brightness(1.1);
+  box-shadow: 0 12px 28px rgba(240, 95, 97, 0.28);
+}
+
+
